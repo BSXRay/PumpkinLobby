@@ -1,0 +1,47 @@
+﻿[package]
+name = "pumpkin"
+version.workspace = true
+description = "Empowering everyone to host fast and efficient Minecraft servers."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[package.metadata.tauri-winres]
+# FileDescription is handled as the Program name by Windows!
+FileDescription = "Pumpkin"
+OriginalFilename = "pumpkin.exe"
+LegalCopyright = "Copyright (C) 2026 Aleksander Medvedev"
+
+[package.metadata.deb]
+maintainer = "Pumpkin Contributors <https://github.com/Pumpkin-MC/Pumpkin>"
+copyright = "2026, Pumpkin Contributors <https://github.com/Pumpkin-MC/Pumpkin>"
+license-file = ["../../LICENSE", "4"]
+extended-description = "Pumpkin is a fast Minecraft server written in Rust."
+depends = "libc6 (>= 2.31)"
+section = "games"
+priority = "optional"
+assets = [
+    ["target/release/pumpkin", "usr/bin/pumpkin", "755"],
+    ["../../README.md", "usr/share/doc/pumpkin/README.md", "644"],
+]
+[dependencies]
+pumpkin-core.workspace = true
+pumpkin-wasm-host.workspace = true
+pumpkin-config.workspace = true
+pumpkin-data = { workspace = true, features = ["default"] }
+pumpkin-util.workspace = true
+pumpkin-world.workspace = true
+
+rayon.workspace = true
+rustls.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
+tracing.workspace = true
+console-subscriber = { workspace = true, optional = true }
+
+[features]
+console-subscriber = ["dep:console-subscriber"]
+# Load plugins built against the v0.2 API. Off until the v0.2 ABI is finished.
+plugin-v0_2 = ["pumpkin-wasm-host/v0_2"]
+
+[lints]
+workspace = true
