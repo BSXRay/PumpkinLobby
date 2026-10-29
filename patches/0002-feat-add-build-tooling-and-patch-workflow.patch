@@ -1,0 +1,86 @@
+From 9955f7556fce683d9819f145398a19614782cfd5 Mon Sep 17 00:00:00 2001
+From: BSXRay <BSXRay@users.noreply.github.com>
+Date: Thu, 29 Oct 2026 20:21:02 +0100
+Subject: [PATCH 2/2] feat: add build tooling and patch workflow
+
+---
+ BUILD.md            | 16 ++++++++++++++++
+ build-linux-deb.ps1 | 22 ++++++++++++++++++++++
+ build-windows.ps1   | 11 +++++++++++
+ 3 files changed, 49 insertions(+)
+ create mode 100644 BUILD.md
+ create mode 100644 build-linux-deb.ps1
+ create mode 100644 build-windows.ps1
+
+diff --git a/BUILD.md b/BUILD.md
+new file mode 100644
+index 000000000..ba0fab576
+--- /dev/null
++++ b/BUILD.md
+@@ -0,0 +1,16 @@
++# Local builds (Windows x64 & Linux x64 .deb)
++
++This is a patched checkout of [Pumpkin](https://github.com/Pumpkin-MC/Pumpkin).
++
++## Patches
++See `patches/` for the applied changes (disable gameplay features + build tooling).
++
++## Build
++Windows x64:
++```
++.\build-windows.ps1
++```
++Linux x64 .deb (cross-built from Windows):
++```
++.\build-linux-deb.ps1
++```
+diff --git a/build-linux-deb.ps1 b/build-linux-deb.ps1
+new file mode 100644
+index 000000000..307fefdb0
+--- /dev/null
++++ b/build-linux-deb.ps1
+@@ -0,0 +1,22 @@
++param([switch]$Full)
++Set-Location $PSScriptRoot
++$zigDir = "C:\Users\119yu\Downloads\zig-x86_64-windows-0.17.0\zig-x86_64-windows-0.17.0"
++if (-not (Get-Command zig -ErrorAction SilentlyContinue)) {
++    if (Test-Path "$zigDir\zig.exe") { $env:PATH = "$zigDir;" + $env:PATH }
++    else { throw "zig not found" }
++}
++if (-not $Full) {
++    $env:CARGO_PROFILE_RELEASE_LTO = "off"
++    $env:CARGO_PROFILE_RELEASE_CODEGEN_UNITS = "16"
++}
++$target = "x86_64-unknown-linux-gnu"
++cargo zigbuild --release -p pumpkin --target $target
++if ($LASTEXITCODE -ne 0) { throw "cargo zigbuild failed" }
++Push-Location "crates\pumpkin"
++cargo deb --target $target --no-build --no-strip
++$debExit = $LASTEXITCODE
++Pop-Location
++if ($debExit -ne 0) { throw "cargo deb failed" }
++New-Item -ItemType Directory -Force -Path dist | Out-Null
++$deb = Get-ChildItem "target\debian\*.deb" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
++if ($deb) { Copy-Item -Force $deb.FullName "dist\"; Write-Host "Built: dist\$($deb.Name)" }
+\ No newline at end of file
+diff --git a/build-windows.ps1 b/build-windows.ps1
+new file mode 100644
+index 000000000..5208c87bf
+--- /dev/null
++++ b/build-windows.ps1
+@@ -0,0 +1,11 @@
++param([switch]$Full)
++Set-Location $PSScriptRoot
++if (-not $Full) {
++    $env:CARGO_PROFILE_RELEASE_LTO = "off"
++    $env:CARGO_PROFILE_RELEASE_CODEGEN_UNITS = "16"
++}
++cargo build --release -p pumpkin
++if ($LASTEXITCODE -ne 0) { throw "cargo build failed" }
++New-Item -ItemType Directory -Force -Path dist | Out-Null
++Copy-Item -Force "target\release\pumpkin.exe" "dist\pumpkin-windows-x64.exe"
++Write-Host "Built: dist\pumpkin-windows-x64.exe"
+\ No newline at end of file
+-- 
+2.45.1.windows.1
+
