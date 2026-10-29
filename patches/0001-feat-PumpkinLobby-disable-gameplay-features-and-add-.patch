@@ -1,6 +1,6 @@
-From ebeea8f2a3f4c84e90fb7ae18ce8482319e5ec47 Mon Sep 17 00:00:00 2001
+From 8fa3188d3b443ee899c1057da00a2593343e2bc4 Mon Sep 17 00:00:00 2001
 From: BSXRay <bsxray@users.noreply.github.com>
-Date: Thu, 29 Oct 2026 20:56:17 +0100
+Date: Thu, 29 Oct 2026 21:06:22 +0100
 Subject: [PATCH] feat: PumpkinLobby - disable gameplay features and add build
  tooling
 
@@ -11,7 +11,9 @@ Subject: [PATCH] feat: PumpkinLobby - disable gameplay features and add build
  build-linux-deb.ps1                           | 22 +++++
  build-windows.ps1                             | 11 +++
  .../pumpkin-core/src/block/entities/hopper.rs |  4 +-
+ .../src/block/entities/mob_spawner.rs         |  6 +-
  .../pumpkin-core/src/command/commands/mod.rs  |  5 +-
+ .../pumpkin-core/src/entity/experience_orb.rs |  3 +
  crates/pumpkin-core/src/entity/hunger.rs      | 87 ++-----------------
  crates/pumpkin-core/src/entity/item.rs        |  4 +-
  crates/pumpkin-core/src/entity/mob/piglin.rs  |  4 +-
@@ -23,7 +25,7 @@ Subject: [PATCH] feat: PumpkinLobby - disable gameplay features and add build
  crates/pumpkin-core/src/world/mod.rs          | 31 +++----
  crates/pumpkin-wasm-host-v0_2/src/entity.rs   |  6 +-
  crates/pumpkin/Cargo.toml                     | 17 +++-
- 18 files changed, 140 insertions(+), 194 deletions(-)
+ 20 files changed, 146 insertions(+), 197 deletions(-)
  create mode 100644 BUILD.md
  create mode 100644 build-linux-deb.ps1
  create mode 100644 build-windows.ps1
@@ -144,6 +146,31 @@ index bad3dc9a9..f6de014a7 100644
  }
 +
 +
+diff --git a/crates/pumpkin-core/src/block/entities/mob_spawner.rs b/crates/pumpkin-core/src/block/entities/mob_spawner.rs
+index 9182d7c69..5c260d415 100644
+--- a/crates/pumpkin-core/src/block/entities/mob_spawner.rs
++++ b/crates/pumpkin-core/src/block/entities/mob_spawner.rs
+@@ -1,4 +1,4 @@
+-use std::sync::{
++﻿use std::sync::{
+     Arc,
+     atomic::{AtomicI32, Ordering},
+ };
+@@ -102,8 +102,7 @@ impl BlockEntity for MobSpawnerBlockEntity {
+         self.position
+     }
+ 
+-    fn tick(&self, world: &Arc<World>) {
+-        if let Some(entity_type) = &self.entity_type.load() {
++    fn tick(&self, _world: &Arc<World>) {\n        // Mob spawners disabled in PumpkinLobby.\n        return;\n        if let Some(entity_type) = &self.entity_type.load() {
+             let center = self.position.to_centered_f64();
+             let max_player_dist_sq = (self.required_player_range as f64).powi(2);
+             let player_nearby = world.players.load().iter().any(|p| {
+@@ -299,3 +298,4 @@ impl BlockEntity for MobSpawnerBlockEntity {
+         self
+     }
+ }
++
 diff --git a/crates/pumpkin-core/src/command/commands/mod.rs b/crates/pumpkin-core/src/command/commands/mod.rs
 index 3d3ec4d51..c8949ee12 100644
 --- a/crates/pumpkin-core/src/command/commands/mod.rs
@@ -175,6 +202,20 @@ index 3d3ec4d51..c8949ee12 100644
      }
  }
 +
+diff --git a/crates/pumpkin-core/src/entity/experience_orb.rs b/crates/pumpkin-core/src/entity/experience_orb.rs
+index 3c72212b5..f10a14b4d 100644
+--- a/crates/pumpkin-core/src/entity/experience_orb.rs
++++ b/crates/pumpkin-core/src/entity/experience_orb.rs
+@@ -114,6 +114,9 @@ impl ExperienceOrbEntity {
+         direction: Vector3<f64>,
+         amount: u32,
+     ) {
++        // XP drops disabled in PumpkinLobby.
++        let _ = (world, position, direction, amount);
++        return;
+         let mut amount = amount;
+         while amount > 0 {
+             let i = Self::round_to_orb_size(amount);
 diff --git a/crates/pumpkin-core/src/entity/hunger.rs b/crates/pumpkin-core/src/entity/hunger.rs
 index 9de1d0467..55eb29421 100644
 --- a/crates/pumpkin-core/src/entity/hunger.rs
