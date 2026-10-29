@@ -1,0 +1,430 @@
+From 234ea9d4f1f6575ba814d28c37bb18132e9c0a14 Mon Sep 17 00:00:00 2001
+From: BSXRay <BSXRay@users.noreply.github.com>
+Date: Thu, 29 Oct 2026 20:21:12 +0100
+Subject: [PATCH 3/4] feat: add patch list and update workflow (PaperMC-style)
+
+---
+ ...-tooling-and-disable-gameplay-featur.patch | 286 ++++++++++++++++++
+ ...add-build-tooling-and-patch-workflow.patch |  86 ++++++
+ update-and-build.ps1                          |  22 ++
+ 3 files changed, 394 insertions(+)
+ create mode 100644 patches/0001-feat-lobby-build-tooling-and-disable-gameplay-featur.patch
+ create mode 100644 patches/0002-feat-add-build-tooling-and-patch-workflow.patch
+ create mode 100644 update-and-build.ps1
+
+diff --git a/patches/0001-feat-lobby-build-tooling-and-disable-gameplay-featur.patch b/patches/0001-feat-lobby-build-tooling-and-disable-gameplay-featur.patch
+new file mode 100644
+index 000000000..c95c223d3
+--- /dev/null
++++ b/patches/0001-feat-lobby-build-tooling-and-disable-gameplay-featur.patch
+@@ -0,0 +1,286 @@
++From 2405e8938f34628a4568bef04c34026dc640b0c2 Mon Sep 17 00:00:00 2001
++From: BSXRay <BSXRay@users.noreply.github.com>
++Date: Thu, 29 Oct 2026 20:20:35 +0100
++Subject: [PATCH 1/2] feat: lobby build tooling and disable gameplay features
++
++---
++ .gitignore                               |  4 ++
++ crates/pumpkin-core/src/entity/hunger.rs | 85 ++----------------------
++ crates/pumpkin-core/src/entity/player.rs | 38 +++--------
++ crates/pumpkin-core/src/world/mod.rs     | 18 ++---
++ crates/pumpkin/Cargo.toml                | 17 ++++-
++ 5 files changed, 38 insertions(+), 124 deletions(-)
++
++diff --git a/.gitignore b/.gitignore
++index 831372d9b..8cf3676d5 100644
++--- a/.gitignore
+++++ b/.gitignore
++@@ -163,3 +163,7 @@ world_nether/
++ world_the_end/
++ patchbukkit/
++ minecraft-sources*/
+++
+++# Local build artifacts
+++dist/
+++
++diff --git a/crates/pumpkin-core/src/entity/hunger.rs b/crates/pumpkin-core/src/entity/hunger.rs
++index 9de1d0467..2ab3a50cc 100644
++--- a/crates/pumpkin-core/src/entity/hunger.rs
+++++ b/crates/pumpkin-core/src/entity/hunger.rs
++@@ -1,8 +1,6 @@
++-use super::{NBTStorage, NBTStorageInit, player::Player};
+++﻿use super::{NBTStorage, NBTStorageInit, player::Player};
++ use crossbeam::atomic::AtomicCell;
++-use pumpkin_data::damage::DamageType;
++ use pumpkin_nbt::compound::NbtCompound;
++-use pumpkin_util::Difficulty;
++ 
++ const MAX_FOOD: u8 = 20;
++ const EXHAUSTION_COST: f32 = 4.0;
++@@ -27,84 +25,8 @@ impl Default for HungerManager {
++ }
++ 
++ impl HungerManager {
++-    pub fn tick(&self, player: &Player) {
++-        let mut level = self.level.load();
++-        let mut saturation = self.saturation.load();
++-        let mut exhaustion = self.exhaustion.load();
++-        let mut timer = self.tick_timer.load();
++-
++-        let level_info = player.world().level_info.load();
++-        let difficulty = level_info.difficulty;
++-        let natural_regen = level_info.game_rules.natural_health_regeneration;
++-        let health = player.living_entity.health.load();
++-        let can_heal = player.can_food_heal();
++-
++-        let mut needs_sync = false;
++-        let mut heal_amount = 0.0;
++-        let mut damage_amount = 0.0;
++-
++-        if exhaustion > EXHAUSTION_COST {
++-            exhaustion -= EXHAUSTION_COST;
++-            if saturation > 0.0 {
++-                saturation = (saturation - 1.0).max(0.0);
++-            } else if difficulty != Difficulty::Peaceful {
++-                level = level.saturating_sub(1);
++-            }
++-            needs_sync = true;
++-        }
++-
++-        if natural_regen && saturation > 0.0 && can_heal && level >= 20 {
++-            timer += 1;
++-            if timer >= 10 {
++-                let cost = saturation.min(6.0);
++-                heal_amount = cost / 6.0;
++-                exhaustion = (exhaustion + cost).min(MAX_EXHAUSTION);
++-                timer = 0;
++-                needs_sync = true;
++-            }
++-        } else if natural_regen && level >= 18 && can_heal {
++-            timer += 1;
++-            if timer >= 80 {
++-                heal_amount = 1.0;
++-                exhaustion = (exhaustion + 6.0).min(MAX_EXHAUSTION);
++-                timer = 0;
++-                needs_sync = true;
++-            }
++-        } else if level == 0 {
++-            timer += 1;
++-            if timer >= 80 {
++-                timer = 0;
++-                let should_starve = health > 10.0
++-                    || difficulty == Difficulty::Hard
++-                    || (health > 1.0 && difficulty == Difficulty::Normal);
++-
++-                if should_starve {
++-                    damage_amount = 1.0;
++-                }
++-                self.tick_timer.store(0);
++-            }
++-        } else {
++-            timer = 0;
++-        }
++-
++-        if needs_sync || timer != self.tick_timer.load() {
++-            self.level.store(level);
++-            self.saturation.store(saturation);
++-            self.exhaustion.store(exhaustion);
++-            self.tick_timer.store(timer);
++-        }
++-
++-        if needs_sync {
++-            player.send_health();
++-        }
++-        if heal_amount > 0.0 {
++-            player.heal(heal_amount);
++-        }
++-        if damage_amount > 0.0 {
++-            player
++-                .living_entity
++-                .damage(player, damage_amount, DamageType::STARVE);
++-        }
+++    pub fn tick(&self, _player: &Player) {
+++        // Hunger disabled in PumpkinLobby.
++     }
++ 
++     pub fn eat(&self, player: &Player, food: u8, saturation: f32) {
++@@ -182,3 +104,4 @@ impl NBTStorage for HungerManager {
++ }
++ 
++ impl NBTStorageInit for HungerManager {}
+++
++diff --git a/crates/pumpkin-core/src/entity/player.rs b/crates/pumpkin-core/src/entity/player.rs
++index ef61a6c3d..61f304f26 100644
++--- a/crates/pumpkin-core/src/entity/player.rs
+++++ b/crates/pumpkin-core/src/entity/player.rs
++@@ -1,4 +1,4 @@
++-pub mod advancement;
+++﻿pub mod advancement;
++ pub mod statistics;
++ 
++ use core::f32;
++@@ -304,7 +304,6 @@ use crate::log_at_level;
++ use crate::net::{ClientPlatform, GameProfile};
++ use crate::net::{DisconnectReason, PlayerConfig};
++ use crate::plugin::api::events::entity::entity_toggle_glide::EntityToggleGlideEvent;
++-use crate::plugin::player::exp_change::PlayerExpChangeEvent;
++ use crate::plugin::player::inventory_interact::InventoryClickEvent;
++ use crate::plugin::player::player_change_world::PlayerChangeWorldEvent;
++ use crate::plugin::player::player_gamemode_change::PlayerGamemodeChangeEvent;
++@@ -1838,7 +1837,7 @@ impl Player {
++         }
++     }
++ 
++-    /// Convenience wrapper – damages the currently held (main-hand) item.
+++    /// Convenience wrapper â€“ damages the currently held (main-hand) item.
++     pub fn damage_held_item(&self, amount: i32) -> bool {
++         self.damage_item_in_slot(&EquipmentSlot::MAIN_HAND, amount)
++     }
++@@ -4581,13 +4580,9 @@ impl Player {
++     }
++ 
++     #[must_use]
++-    pub fn can_eat(&self, can_always_eat: bool) -> bool {
++-        self.abilities
++-            .lock()
++-            .unwrap_or_else(std::sync::PoisonError::into_inner)
++-            .invulnerable
++-            || can_always_eat
++-            || self.hunger_manager.level.load() < 20
+++    pub fn can_eat(&self, _can_always_eat: bool) -> bool {
+++        // Eating disabled in PumpkinLobby.
+++        false
++     }
++ 
++     pub fn can_food_heal(&self) -> bool {
++@@ -5804,25 +5799,8 @@ impl Player {
++     }
++ 
++     /// Add experience points to the player.
++-    pub fn add_experience_points(self: &Arc<Self>, mut added_points: i32) {
++-        let server = self.world().server.upgrade();
++-        if let Some(server) = server {
++-            let mut event = PlayerExpChangeEvent::new(self.clone(), added_points);
++-            server.plugin_manager.fire_blocking(&server, &mut event);
++-            added_points = event.amount;
++-        }
++-
++-        let current_level = self.experience_level.load(Ordering::Relaxed);
++-        let current_points = self.experience_points.load(Ordering::Relaxed);
++-
++-        let total_exp = experience::points_to_level(current_level) as i64 + current_points as i64;
++-        let new_total_exp = total_exp + added_points as i64;
++-        let safe_new_total = new_total_exp.clamp(0, i32::MAX as i64) as i32;
++-
++-        let (new_level, new_points) = experience::total_to_level_and_points(safe_new_total);
++-        let progress = experience::progress_in_level(new_points, new_level);
++-
++-        self.set_experience(new_level, progress, new_points);
+++    pub fn add_experience_points(self: &Arc<Self>, _added_points: i32) {
+++        // Experience disabled in PumpkinLobby.
++     }
++ 
++     pub fn apply_mending_from_xp(&self, mut xp: i32) -> i32 {
++@@ -8513,3 +8491,5 @@ mod tests {
++         assert!(bedrock_block > java_block);
++     }
++ }
+++
+++
++diff --git a/crates/pumpkin-core/src/world/mod.rs b/crates/pumpkin-core/src/world/mod.rs
++index a5f946060..75cb6f434 100644
++--- a/crates/pumpkin-core/src/world/mod.rs
+++++ b/crates/pumpkin-core/src/world/mod.rs
++@@ -2176,12 +2176,7 @@ impl World {
++         let spawn_enemies = !peaceful && spawn_monsters && spawn_mobs;
++         let spawn_passives = spawn_passives && spawn_mobs;
++ 
++-        let spawn_list = Arc::new(natural_spawner::get_filtered_spawning_categories(
++-            &spawn_state,
++-            spawn_mobs,
++-            spawn_enemies,
++-            spawn_passives,
++-        ));
+++        let spawn_list: Arc<Vec<&'static pumpkin_data::entity::MobCategory>> = Arc::new(Vec::new());
++ 
++         // 5. Parallel Chunk Spawners via Rayon
++         if !spawn_list.is_empty() {
++@@ -5761,13 +5756,12 @@ impl World {
++ 
++     pub fn schedule_fluid_tick(
++         &self,
++-        fluid: &Fluid,
++-        block_pos: BlockPos,
++-        delay: u8,
++-        priority: TickPriority,
+++        _fluid: &Fluid,
+++        _block_pos: BlockPos,
+++        _delay: u8,
+++        _priority: TickPriority,
++     ) {
++-        self.level
++-            .schedule_fluid_tick(fluid, block_pos, delay, priority);
+++        // Liquid physics disabled in PumpkinLobby.
++     }
++ 
++     pub fn is_block_tick_scheduled(&self, block_pos: &BlockPos, block: &Block) -> bool {
++diff --git a/crates/pumpkin/Cargo.toml b/crates/pumpkin/Cargo.toml
++index f659f9a5d..91ddf902a 100644
++--- a/crates/pumpkin/Cargo.toml
+++++ b/crates/pumpkin/Cargo.toml
++@@ -1,4 +1,4 @@
++-[package]
+++﻿[package]
++ name = "pumpkin"
++ version.workspace = true
++ description = "Empowering everyone to host fast and efficient Minecraft servers."
++@@ -10,8 +10,20 @@ license.workspace = true
++ # FileDescription is handled as the Program name by Windows!
++ FileDescription = "Pumpkin"
++ OriginalFilename = "pumpkin.exe"
++-LegalCopyright = "Copyright © 2026 Aleksander Medvedev"
+++LegalCopyright = "Copyright (C) 2026 Aleksander Medvedev"
++ 
+++[package.metadata.deb]
+++maintainer = "Pumpkin Contributors <https://github.com/Pumpkin-MC/Pumpkin>"
+++copyright = "2026, Pumpkin Contributors <https://github.com/Pumpkin-MC/Pumpkin>"
+++license-file = ["../../LICENSE", "4"]
+++extended-description = "Pumpkin is a fast Minecraft server written in Rust."
+++depends = "libc6 (>= 2.31)"
+++section = "games"
+++priority = "optional"
+++assets = [
+++    ["target/release/pumpkin", "usr/bin/pumpkin", "755"],
+++    ["../../README.md", "usr/share/doc/pumpkin/README.md", "644"],
+++]
++ [dependencies]
++ pumpkin-core.workspace = true
++ pumpkin-wasm-host.workspace = true
++@@ -33,3 +45,4 @@ plugin-v0_2 = ["pumpkin-wasm-host/v0_2"]
++ 
++ [lints]
++ workspace = true
+++
++-- 
++2.45.1.windows.1
++
+diff --git a/patches/0002-feat-add-build-tooling-and-patch-workflow.patch b/patches/0002-feat-add-build-tooling-and-patch-workflow.patch
+new file mode 100644
+index 000000000..f51503161
+--- /dev/null
++++ b/patches/0002-feat-add-build-tooling-and-patch-workflow.patch
+@@ -0,0 +1,86 @@
++From 9955f7556fce683d9819f145398a19614782cfd5 Mon Sep 17 00:00:00 2001
++From: BSXRay <BSXRay@users.noreply.github.com>
++Date: Thu, 29 Oct 2026 20:21:02 +0100
++Subject: [PATCH 2/2] feat: add build tooling and patch workflow
++
++---
++ BUILD.md            | 16 ++++++++++++++++
++ build-linux-deb.ps1 | 22 ++++++++++++++++++++++
++ build-windows.ps1   | 11 +++++++++++
++ 3 files changed, 49 insertions(+)
++ create mode 100644 BUILD.md
++ create mode 100644 build-linux-deb.ps1
++ create mode 100644 build-windows.ps1
++
++diff --git a/BUILD.md b/BUILD.md
++new file mode 100644
++index 000000000..ba0fab576
++--- /dev/null
+++++ b/BUILD.md
++@@ -0,0 +1,16 @@
+++# Local builds (Windows x64 & Linux x64 .deb)
+++
+++This is a patched checkout of [Pumpkin](https://github.com/Pumpkin-MC/Pumpkin).
+++
+++## Patches
+++See `patches/` for the applied changes (disable gameplay features + build tooling).
+++
+++## Build
+++Windows x64:
+++```
+++.\build-windows.ps1
+++```
+++Linux x64 .deb (cross-built from Windows):
+++```
+++.\build-linux-deb.ps1
+++```
++diff --git a/build-linux-deb.ps1 b/build-linux-deb.ps1
++new file mode 100644
++index 000000000..307fefdb0
++--- /dev/null
+++++ b/build-linux-deb.ps1
++@@ -0,0 +1,22 @@
+++param([switch]$Full)
+++Set-Location $PSScriptRoot
+++$zigDir = "C:\Users\119yu\Downloads\zig-x86_64-windows-0.17.0\zig-x86_64-windows-0.17.0"
+++if (-not (Get-Command zig -ErrorAction SilentlyContinue)) {
+++    if (Test-Path "$zigDir\zig.exe") { $env:PATH = "$zigDir;" + $env:PATH }
+++    else { throw "zig not found" }
+++}
+++if (-not $Full) {
+++    $env:CARGO_PROFILE_RELEASE_LTO = "off"
+++    $env:CARGO_PROFILE_RELEASE_CODEGEN_UNITS = "16"
+++}
+++$target = "x86_64-unknown-linux-gnu"
+++cargo zigbuild --release -p pumpkin --target $target
+++if ($LASTEXITCODE -ne 0) { throw "cargo zigbuild failed" }
+++Push-Location "crates\pumpkin"
+++cargo deb --target $target --no-build --no-strip
+++$debExit = $LASTEXITCODE
+++Pop-Location
+++if ($debExit -ne 0) { throw "cargo deb failed" }
+++New-Item -ItemType Directory -Force -Path dist | Out-Null
+++$deb = Get-ChildItem "target\debian\*.deb" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+++if ($deb) { Copy-Item -Force $deb.FullName "dist\"; Write-Host "Built: dist\$($deb.Name)" }
++\ No newline at end of file
++diff --git a/build-windows.ps1 b/build-windows.ps1
++new file mode 100644
++index 000000000..5208c87bf
++--- /dev/null
+++++ b/build-windows.ps1
++@@ -0,0 +1,11 @@
+++param([switch]$Full)
+++Set-Location $PSScriptRoot
+++if (-not $Full) {
+++    $env:CARGO_PROFILE_RELEASE_LTO = "off"
+++    $env:CARGO_PROFILE_RELEASE_CODEGEN_UNITS = "16"
+++}
+++cargo build --release -p pumpkin
+++if ($LASTEXITCODE -ne 0) { throw "cargo build failed" }
+++New-Item -ItemType Directory -Force -Path dist | Out-Null
+++Copy-Item -Force "target\release\pumpkin.exe" "dist\pumpkin-windows-x64.exe"
+++Write-Host "Built: dist\pumpkin-windows-x64.exe"
++\ No newline at end of file
++-- 
++2.45.1.windows.1
++
+diff --git a/update-and-build.ps1 b/update-and-build.ps1
+new file mode 100644
+index 000000000..4ac273fa4
+--- /dev/null
++++ b/update-and-build.ps1
+@@ -0,0 +1,22 @@
++# Fetch latest upstream Pumpkin, apply local patches, build.
++param([switch]$Windows, [switch]$LinuxDeb, [switch]$Full)
++
++Set-Location $PSScriptRoot
++
++git fetch upstream master
++if ($LASTEXITCODE -ne 0) { throw "git fetch failed" }
++
++git checkout --detach upstream/master
++if ($LASTEXITCODE -ne 0) { throw "checkout failed" }
++
++# Apply patches
++$patches = Get-ChildItem "patches\*.patch" | Sort-Object Name
++foreach ($p in $patches) {
++    git am $p.FullName
++    if ($LASTEXITCODE -ne 0) { throw "git am failed on $($p.Name)" }
++}
++
++if ($Windows) { .\build-windows.ps1 @PSBoundParameters }
++if ($LinuxDeb) { .\build-linux-deb.ps1 @PSBoundParameters }
++
++Write-Host "Done."
+\ No newline at end of file
+-- 
+2.45.1.windows.1
+

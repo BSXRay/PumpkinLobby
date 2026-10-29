@@ -1,7 +1,7 @@
 From 9955f7556fce683d9819f145398a19614782cfd5 Mon Sep 17 00:00:00 2001
 From: BSXRay <BSXRay@users.noreply.github.com>
 Date: Thu, 29 Oct 2026 20:21:02 +0100
-Subject: [PATCH 2/2] feat: add build tooling and patch workflow
+Subject: [PATCH 2/4] feat: add build tooling and patch workflow
 
 ---
  BUILD.md            | 16 ++++++++++++++++

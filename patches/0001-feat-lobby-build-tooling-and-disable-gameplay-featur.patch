@@ -1,7 +1,7 @@
 From 2405e8938f34628a4568bef04c34026dc640b0c2 Mon Sep 17 00:00:00 2001
 From: BSXRay <BSXRay@users.noreply.github.com>
 Date: Thu, 29 Oct 2026 20:20:35 +0100
-Subject: [PATCH 1/2] feat: lobby build tooling and disable gameplay features
+Subject: [PATCH 1/4] feat: lobby build tooling and disable gameplay features
 
 ---
  .gitignore                               |  4 ++
