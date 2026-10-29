@@ -1,31 +1,31 @@
-From a95be00ae9584b0ef3e759773f322c956fab3317 Mon Sep 17 00:00:00 2001
+From 0bf74531e02350b8d4efbf9c296d3e001e2b0d85 Mon Sep 17 00:00:00 2001
 From: BSXRay <bsxray@users.noreply.github.com>
-Date: Thu, 29 Oct 2026 21:09:38 +0100
+Date: Thu, 29 Oct 2026 21:14:29 +0100
 Subject: [PATCH] feat: PumpkinLobby - disable gameplay features and add build
  tooling
 
 ---
- .gitignore                                    |  4 +
- BUILD.md                                      | 16 ++++
- README.md                                     |  7 ++
- build-linux-deb.ps1                           | 22 +++++
- build-windows.ps1                             | 11 +++
- .../pumpkin-core/src/block/entities/hopper.rs |  4 +-
- .../src/block/entities/mob_spawner.rs         |  8 +-
- .../pumpkin-core/src/command/commands/mod.rs  |  5 +-
- .../pumpkin-core/src/entity/experience_orb.rs | 12 +--
- crates/pumpkin-core/src/entity/hunger.rs      | 87 ++-----------------
- crates/pumpkin-core/src/entity/item.rs        |  4 +-
- crates/pumpkin-core/src/entity/mob/piglin.rs  |  4 +-
- crates/pumpkin-core/src/entity/mod.rs         | 26 +++---
- crates/pumpkin-core/src/entity/player.rs      | 79 +++--------------
- .../src/entity/vehicle/minecart/hopper.rs     |  4 +-
- .../pumpkin-core/src/item/items/spawn_egg.rs  |  3 +-
- .../src/server/server_test_manager.rs         |  4 +-
- crates/pumpkin-core/src/world/mod.rs          | 31 +++----
- crates/pumpkin-wasm-host-v0_2/src/entity.rs   |  6 +-
- crates/pumpkin/Cargo.toml                     | 17 +++-
- 20 files changed, 151 insertions(+), 203 deletions(-)
+ .gitignore                                    |   4 +
+ BUILD.md                                      |  16 +++
+ README.md                                     |   7 ++
+ build-linux-deb.ps1                           |  22 ++++
+ build-windows.ps1                             |  11 ++
+ .../pumpkin-core/src/block/entities/hopper.rs |   4 +-
+ .../src/block/entities/mob_spawner.rs         | 108 +-----------------
+ .../pumpkin-core/src/command/commands/mod.rs  |   5 +-
+ .../pumpkin-core/src/entity/experience_orb.rs |  11 +-
+ crates/pumpkin-core/src/entity/hunger.rs      |  87 +-------------
+ crates/pumpkin-core/src/entity/item.rs        |   4 +-
+ crates/pumpkin-core/src/entity/mob/piglin.rs  |   4 +-
+ crates/pumpkin-core/src/entity/mod.rs         |  26 ++---
+ crates/pumpkin-core/src/entity/player.rs      |  79 +++----------
+ .../src/entity/vehicle/minecart/hopper.rs     |   4 +-
+ .../pumpkin-core/src/item/items/spawn_egg.rs  |   3 +-
+ .../src/server/server_test_manager.rs         |   4 +-
+ crates/pumpkin-core/src/world/mod.rs          |  31 +++--
+ crates/pumpkin-wasm-host-v0_2/src/entity.rs   |   6 +-
+ crates/pumpkin/Cargo.toml                     |  17 ++-
+ 20 files changed, 149 insertions(+), 304 deletions(-)
  create mode 100644 BUILD.md
  create mode 100644 build-linux-deb.ps1
  create mode 100644 build-windows.ps1
@@ -147,7 +147,7 @@ index bad3dc9a9..f6de014a7 100644
 +
 +
 diff --git a/crates/pumpkin-core/src/block/entities/mob_spawner.rs b/crates/pumpkin-core/src/block/entities/mob_spawner.rs
-index 9182d7c69..31ad040bc 100644
+index 9182d7c69..70d40df98 100644
 --- a/crates/pumpkin-core/src/block/entities/mob_spawner.rs
 +++ b/crates/pumpkin-core/src/block/entities/mob_spawner.rs
 @@ -1,4 +1,4 @@
@@ -156,17 +156,117 @@ index 9182d7c69..31ad040bc 100644
      Arc,
      atomic::{AtomicI32, Ordering},
  };
-@@ -103,6 +103,9 @@ impl BlockEntity for MobSpawnerBlockEntity {
+@@ -102,107 +102,8 @@ impl BlockEntity for MobSpawnerBlockEntity {
+         self.position
      }
  
-     fn tick(&self, world: &Arc<World>) {
+-    fn tick(&self, world: &Arc<World>) {
+-        if let Some(entity_type) = &self.entity_type.load() {
+-            let center = self.position.to_centered_f64();
+-            let max_player_dist_sq = (self.required_player_range as f64).powi(2);
+-            let player_nearby = world.players.load().iter().any(|p| {
+-                p.get_entity().pos.load().squared_distance_to_vec(&center) <= max_player_dist_sq
+-            });
+-
+-            if !player_nearby {
+-                return;
+-            }
+-
+-            if self.delay.load(Ordering::Relaxed) < 0 {
+-                self.update_spawns(world);
+-                return;
+-            }
+-            if self.delay.load(Ordering::Relaxed) > 0 {
+-                self.delay.fetch_sub(1, Ordering::Relaxed);
+-                return;
+-            }
+-
+-            let search_radius_horiz = (self.spawn_range * 2) as f64;
+-            let search_radius_vert = 4.0;
+-            let nearby_count = world
+-                .entities
+-                .load()
+-                .iter()
+-                .filter(|e| {
+-                    let ent = e.get_entity();
+-                    if ent.entity_type.id != entity_type.id {
+-                        return false;
+-                    }
+-                    let pos = ent.pos.load();
+-                    (pos.x - center.x).abs() <= search_radius_horiz
+-                        && (pos.z - center.z).abs() <= search_radius_horiz
+-                        && (pos.y - center.y).abs() <= search_radius_vert
+-                })
+-                .count();
+-
+-            if nearby_count as i32 >= self.max_nearby_entities {
+-                self.update_spawns(world);
+-                return;
+-            }
+-
+-            let spawn_range = self.spawn_range;
+-            let mut spawned_any = false;
+-            let mut cancelled_any = false;
+-            for _ in 0..self.spawn_count {
+-                let pos = self.position.0;
+-
+-                let spawn_pos = Vector3::new(
+-                    pos.x as f64
+-                        + (rand::random::<f64>() - rand::random::<f64>()) * spawn_range as f64
+-                        + 0.5,
+-                    (pos.y + rand::random_range(0..3) - 1) as f64,
+-                    pos.z as f64
+-                        + (rand::random::<f64>() - rand::random::<f64>()) * spawn_range as f64
+-                        + 0.5,
+-                );
+-                if !world.is_space_empty(entity_type.get_spawn_bounding_box(
+-                    spawn_pos.x,
+-                    spawn_pos.y,
+-                    spawn_pos.z,
+-                )) {
+-                    continue;
+-                }
+-                let entity = crate::entity::r#type::from_type(
+-                    entity_type,
+-                    spawn_pos,
+-                    world,
+-                    uuid::Uuid::new_v4(),
+-                );
+-                let yaw = rand::random::<f32>() * 360.0;
+-                entity.get_entity().set_rotation(yaw, 0.0);
+-
+-                let mut event =
+-                    crate::plugin::api::events::entity::spawner_spawn::SpawnerSpawnEvent::new(
+-                        entity.get_entity().entity_id,
+-                        self.position,
+-                    );
+-                if let Some(server) = world.server.upgrade() {
+-                    server.plugin_manager.fire_blocking(&server, &mut event);
+-                }
+-                if event.cancelled {
+-                    // Count a cancelled spawn as a completed attempt so the
+-                    // spawner goes on its normal cooldown instead of retrying
+-                    // every tick for as long as a plugin keeps cancelling.
+-                    cancelled_any = true;
+-                    continue;
+-                }
+-
+-                // TODO: support SpawnData NBT (`entity` tag, custom_spawn_rules, equipment).
+-                finalize_spawn(&entity, world, None);
+-                world.spawn_entity(entity);
+-                world.sync_world_event(WorldEvent::ParticlesMobblockSpawn, self.position, 0);
+-                spawned_any = true;
+-            }
+-            if spawned_any || cancelled_any {
+-                self.update_spawns(world);
+-            }
+-        }
++    fn tick(&self, _world: &Arc<World>) {
 +        // Mob spawners disabled in PumpkinLobby.
-+        let _ = world;
-+        return;
-         if let Some(entity_type) = &self.entity_type.load() {
-             let center = self.position.to_centered_f64();
-             let max_player_dist_sq = (self.required_player_range as f64).powi(2);
-@@ -299,3 +302,6 @@ impl BlockEntity for MobSpawnerBlockEntity {
+     }
+ 
+     fn from_nbt(nbt: &pumpkin_nbt::compound::NbtCompound, position: BlockPos) -> Self
+@@ -299,3 +200,6 @@ impl BlockEntity for MobSpawnerBlockEntity {
          self
      }
  }
@@ -205,7 +305,7 @@ index 3d3ec4d51..c8949ee12 100644
  }
 +
 diff --git a/crates/pumpkin-core/src/entity/experience_orb.rs b/crates/pumpkin-core/src/entity/experience_orb.rs
-index 3c72212b5..9789cf18f 100644
+index 3c72212b5..80b2bfb48 100644
 --- a/crates/pumpkin-core/src/entity/experience_orb.rs
 +++ b/crates/pumpkin-core/src/entity/experience_orb.rs
 @@ -1,4 +1,4 @@
@@ -214,7 +314,7 @@ index 3c72212b5..9789cf18f 100644
  use std::sync::{
      Arc,
      atomic::{AtomicI32, AtomicU32, Ordering},
-@@ -114,13 +114,8 @@ impl ExperienceOrbEntity {
+@@ -114,13 +114,7 @@ impl ExperienceOrbEntity {
          direction: Vector3<f64>,
          amount: u32,
      ) {
@@ -226,11 +326,10 @@ index 3c72212b5..9789cf18f 100644
 -            world.spawn_entity(orb);
 -        }
 +        // XP drops disabled in PumpkinLobby.
-+        let _ = (world, position, direction, amount);
      }
  
      const fn round_to_orb_size(value: u32) -> u32 {
-@@ -396,3 +391,4 @@ mod tests {
+@@ -396,3 +390,4 @@ mod tests {
          );
      }
  }
