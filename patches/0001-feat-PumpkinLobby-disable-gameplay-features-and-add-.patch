@@ -1,6 +1,6 @@
-From a751218fc4a0f7874f5ce8f602ade43e8c610cf1 Mon Sep 17 00:00:00 2001
+From ebeea8f2a3f4c84e90fb7ae18ce8482319e5ec47 Mon Sep 17 00:00:00 2001
 From: BSXRay <bsxray@users.noreply.github.com>
-Date: Thu, 29 Oct 2026 20:51:29 +0100
+Date: Thu, 29 Oct 2026 20:56:17 +0100
 Subject: [PATCH] feat: PumpkinLobby - disable gameplay features and add build
  tooling
 
@@ -16,14 +16,14 @@ Subject: [PATCH] feat: PumpkinLobby - disable gameplay features and add build
  crates/pumpkin-core/src/entity/item.rs        |  4 +-
  crates/pumpkin-core/src/entity/mob/piglin.rs  |  4 +-
  crates/pumpkin-core/src/entity/mod.rs         | 26 +++---
- crates/pumpkin-core/src/entity/player.rs      | 76 +++-------------
+ crates/pumpkin-core/src/entity/player.rs      | 79 +++--------------
  .../src/entity/vehicle/minecart/hopper.rs     |  4 +-
  .../pumpkin-core/src/item/items/spawn_egg.rs  |  3 +-
  .../src/server/server_test_manager.rs         |  4 +-
  crates/pumpkin-core/src/world/mod.rs          | 31 +++----
  crates/pumpkin-wasm-host-v0_2/src/entity.rs   |  6 +-
  crates/pumpkin/Cargo.toml                     | 17 +++-
- 18 files changed, 139 insertions(+), 192 deletions(-)
+ 18 files changed, 140 insertions(+), 194 deletions(-)
  create mode 100644 BUILD.md
  create mode 100644 build-linux-deb.ps1
  create mode 100644 build-windows.ps1
@@ -399,16 +399,21 @@ index ce0b5c47d..11ac6041a 100644
 +
 +
 diff --git a/crates/pumpkin-core/src/entity/player.rs b/crates/pumpkin-core/src/entity/player.rs
-index 3e30b28d3..faac61af5 100644
+index 3e30b28d3..118fbf42d 100644
 --- a/crates/pumpkin-core/src/entity/player.rs
 +++ b/crates/pumpkin-core/src/entity/player.rs
-@@ -1,4 +1,4 @@
+@@ -1,9 +1,8 @@
 -pub mod advancement;
 +﻿pub mod advancement;
  pub mod statistics;
  
  use core::f32;
-@@ -304,7 +304,6 @@ use crate::log_at_level;
+ use std::collections::{HashMap, VecDeque};
+-use std::f64::consts::TAU;
+ use std::num::NonZero;
+ use std::str::FromStr;
+ use std::sync::atomic::{AtomicBool, AtomicI8, AtomicI32, AtomicU8, AtomicU32, Ordering};
+@@ -304,7 +303,6 @@ use crate::log_at_level;
  use crate::net::{ClientPlatform, GameProfile};
  use crate::net::{DisconnectReason, PlayerConfig};
  use crate::plugin::api::events::entity::entity_toggle_glide::EntityToggleGlideEvent;
@@ -416,7 +421,15 @@ index 3e30b28d3..faac61af5 100644
  use crate::plugin::player::inventory_interact::InventoryClickEvent;
  use crate::plugin::player::player_change_world::PlayerChangeWorldEvent;
  use crate::plugin::player::player_gamemode_change::PlayerGamemodeChangeEvent;
-@@ -1838,7 +1837,7 @@ impl Player {
+@@ -318,7 +316,6 @@ use bytes::Bytes;
+ use super::breath::BreathManager;
+ use super::combat::{self, AttackType, player_attack_sound};
+ use super::hunger::HungerManager;
+-use super::item::ItemEntity;
+ use super::living::LivingEntity;
+ use super::mob::warden_spawn_tracker::WardenSpawnTracker;
+ use super::{Entity, EntityBase, NBTStorage, NBTStorageInit};
+@@ -1838,7 +1835,7 @@ impl Player {
          }
      }
  
@@ -425,7 +438,7 @@ index 3e30b28d3..faac61af5 100644
      pub fn damage_held_item(&self, amount: i32) -> bool {
          self.damage_item_in_slot(&EquipmentSlot::MAIN_HAND, amount)
      }
-@@ -4581,13 +4580,9 @@ impl Player {
+@@ -4581,13 +4578,9 @@ impl Player {
      }
  
      #[must_use]
@@ -442,7 +455,7 @@ index 3e30b28d3..faac61af5 100644
      }
  
      pub fn can_food_heal(&self) -> bool {
-@@ -5336,41 +5331,8 @@ impl Player {
+@@ -5336,41 +5329,8 @@ impl Player {
          ));
      }
  
@@ -486,7 +499,7 @@ index 3e30b28d3..faac61af5 100644
      }
  
      pub fn drop_held_item(&self, drop_stack: bool) {
-@@ -5804,25 +5766,8 @@ impl Player {
+@@ -5804,25 +5764,8 @@ impl Player {
      }
  
      /// Add experience points to the player.
@@ -514,10 +527,11 @@ index 3e30b28d3..faac61af5 100644
      }
  
      pub fn apply_mending_from_xp(&self, mut xp: i32) -> i32 {
-@@ -8527,3 +8472,6 @@ mod tests {
+@@ -8527,3 +8470,7 @@ mod tests {
          assert!(bedrock_block > java_block);
      }
  }
++
 +
 +
 +
