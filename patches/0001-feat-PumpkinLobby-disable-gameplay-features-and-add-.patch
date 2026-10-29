@@ -1,4 +1,4 @@
-From 3566c06203f31f9279f5809030c7e29172eeb072 Mon Sep 17 00:00:00 2001
+From a751218fc4a0f7874f5ce8f602ade43e8c610cf1 Mon Sep 17 00:00:00 2001
 From: BSXRay <bsxray@users.noreply.github.com>
 Date: Thu, 29 Oct 2026 20:51:29 +0100
 Subject: [PATCH] feat: PumpkinLobby - disable gameplay features and add build
@@ -12,21 +12,18 @@ Subject: [PATCH] feat: PumpkinLobby - disable gameplay features and add build
  build-windows.ps1                             | 11 +++
  .../pumpkin-core/src/block/entities/hopper.rs |  4 +-
  .../pumpkin-core/src/command/commands/mod.rs  |  5 +-
- .../pumpkin-core/src/entity/experience_orb.rs |  3 +
- crates/pumpkin-core/src/entity/hunger.rs      | 87 ++----------------
- crates/pumpkin-core/src/entity/item.rs        | 20 +++--
- crates/pumpkin-core/src/entity/mob/mod.rs     | 70 ++++++++++-----
+ crates/pumpkin-core/src/entity/hunger.rs      | 87 ++-----------------
+ crates/pumpkin-core/src/entity/item.rs        |  4 +-
  crates/pumpkin-core/src/entity/mob/piglin.rs  |  4 +-
- crates/pumpkin-core/src/entity/mod.rs         | 78 ++++++++++++----
- .../src/entity/passive/pufferfish.rs          |  8 +-
- crates/pumpkin-core/src/entity/player.rs      | 90 ++++++-------------
+ crates/pumpkin-core/src/entity/mod.rs         | 26 +++---
+ crates/pumpkin-core/src/entity/player.rs      | 76 +++-------------
  .../src/entity/vehicle/minecart/hopper.rs     |  4 +-
  .../pumpkin-core/src/item/items/spawn_egg.rs  |  3 +-
  .../src/server/server_test_manager.rs         |  4 +-
  crates/pumpkin-core/src/world/mod.rs          | 31 +++----
  crates/pumpkin-wasm-host-v0_2/src/entity.rs   |  6 +-
  crates/pumpkin/Cargo.toml                     | 17 +++-
- 21 files changed, 266 insertions(+), 228 deletions(-)
+ 18 files changed, 139 insertions(+), 192 deletions(-)
  create mode 100644 BUILD.md
  create mode 100644 build-linux-deb.ps1
  create mode 100644 build-windows.ps1
@@ -178,20 +175,6 @@ index 3d3ec4d51..c8949ee12 100644
      }
  }
 +
-diff --git a/crates/pumpkin-core/src/entity/experience_orb.rs b/crates/pumpkin-core/src/entity/experience_orb.rs
-index 765baf069..3c72212b5 100644
---- a/crates/pumpkin-core/src/entity/experience_orb.rs
-+++ b/crates/pumpkin-core/src/entity/experience_orb.rs
-@@ -197,6 +197,9 @@ fn closest_free_center(
- }
- 
- impl EntityBase for ExperienceOrbEntity {
-+    /// Vanilla `ExperienceOrb.doWaterSplashEffect` does nothing.
-+    fn do_water_splash_effect(&self, _caller: &dyn EntityBase) {}
-+
-     fn audited_reach(&self) -> Option<AuditedReach> {
-         let entity = &self.entity;
-         let world = entity.world.load();
 diff --git a/crates/pumpkin-core/src/entity/hunger.rs b/crates/pumpkin-core/src/entity/hunger.rs
 index 9de1d0467..55eb29421 100644
 --- a/crates/pumpkin-core/src/entity/hunger.rs
@@ -303,7 +286,7 @@ index 9de1d0467..55eb29421 100644
 +
 +
 diff --git a/crates/pumpkin-core/src/entity/item.rs b/crates/pumpkin-core/src/entity/item.rs
-index 34195a635..e4449f877 100644
+index 22db1660b..e4449f877 100644
 --- a/crates/pumpkin-core/src/entity/item.rs
 +++ b/crates/pumpkin-core/src/entity/item.rs
 @@ -1,4 +1,4 @@
@@ -312,131 +295,12 @@ index 34195a635..e4449f877 100644
  use crate::entity::player::statistics::StatisticCategory;
  use crate::server::Server;
  use crate::world::World;
-@@ -595,19 +595,25 @@ impl EntityBase for ItemEntity {
-         let pushes =
-             super::MAX_PUSH_OUT_SPEED + super::max_fluid_push_speed(world.dimension.fast_lava);
-         let velocity = entity.velocity.load();
-+        let horizontal = velocity.x.hypot(velocity.z) + pushes;
-+        let vertical = velocity.y.abs() + pushes + self.get_gravity() + SURFACE_UPWARD_ACCELERATION;
-+        let mut links = entity_islands::links_of(self);
-+        // Entering water splashes, wherever the item ends up.
-+        let moved = entity
-+            .bounding_box
-+            .load()
-+            .expand(horizontal, vertical, horizontal);
-+        super::mob::game_event_listener_links(&world, false, &moved, &mut links);
-         let mut reach = AuditedReach {
-             bounding_box: entity.bounding_box.load(),
--            motion: (
--                velocity.x.hypot(velocity.z) + pushes,
--                velocity.y.abs() + pushes + self.get_gravity() + SURFACE_UPWARD_ACCELERATION,
--            ),
-+            motion: (horizontal, vertical),
-             entities: MERGE_DISTANCE,
-             players: 0.0,
-             block_reads: 1.0,
-             route: None,
-             changes_blocks: false,
-             global: false,
--            links: entity_islands::links_of(self),
-+            links,
-         };
-         reach.scan_contact_blocks(&world);
-         Some(reach)
-@@ -1001,3 +1007,5 @@ mod tests {
+@@ -1007,3 +1007,5 @@ mod tests {
          assert!(ItemEntity::can_be_hurt_by(&star, DamageType::LAVA));
      }
  }
 +
 +
-diff --git a/crates/pumpkin-core/src/entity/mob/mod.rs b/crates/pumpkin-core/src/entity/mob/mod.rs
-index 434c26d92..113a47ebe 100644
---- a/crates/pumpkin-core/src/entity/mob/mod.rs
-+++ b/crates/pumpkin-core/src/entity/mob/mod.rs
-@@ -1020,6 +1020,43 @@ fn has_game_event_listener(mob: &dyn Mob) -> bool {
-     listens
- }
- 
-+/// Links the listener mobs that an entity's game events can reach from anywhere in `moved`:
-+/// the splash of entering water, plus step, swim and flap when its movement emits events.
-+pub(crate) fn game_event_listener_links(
-+    world: &World,
-+    emits_movement_events: bool,
-+    moved: &BoundingBox,
-+    links: &mut Vec<i32>,
-+) {
-+    let emitted: &[GameEvent] = if emits_movement_events {
-+        &[
-+            GameEvent::Splash,
-+            GameEvent::Step,
-+            GameEvent::Swim,
-+            GameEvent::Flap,
-+        ]
-+    } else {
-+        &[GameEvent::Splash]
-+    };
-+    let radius = emitted
-+        .iter()
-+        .copied()
-+        .map(GameEvent::notification_radius)
-+        .max()
-+        .unwrap_or(0);
-+    let area = BoundingBox::new(
-+        notified_area(moved.min, radius).min,
-+        notified_area(moved.max, radius).max,
-+    );
-+    links.extend(
-+        world
-+            .entity_index
-+            .query(world.entities.load_full(), area)
-+            .filter(|other| other.get_mob().is_some_and(has_game_event_listener))
-+            .map(|other| other.get_entity().entity_id),
-+    );
-+}
-+
- impl MobEntity {
-     /// What this mob can touch next tick, if its species and goals are audited.
-     pub fn audited_reach(&self, mob: &dyn Mob) -> Option<AuditedReach> {
-@@ -1095,29 +1132,16 @@ impl MobEntity {
- 
-         let mut links = entity_islands::links_of(mob);
-         links.extend(goals.links);
--        if mob.movement_emission().emits_events() {
--            // Step, swim and flap events reach listeners around wherever the mob ends up.
--            let moved = entity
--                .bounding_box
--                .load()
--                .expand(horizontal, vertical, horizontal);
--            let radius = [GameEvent::Step, GameEvent::Swim, GameEvent::Flap]
--                .into_iter()
--                .map(GameEvent::notification_radius)
--                .max()
--                .unwrap_or(0);
--            let area = BoundingBox::new(
--                notified_area(moved.min, radius).min,
--                notified_area(moved.max, radius).max,
--            );
--            links.extend(
--                world
--                    .entity_index
--                    .query(world.entities.load_full(), area)
--                    .filter(|other| other.get_mob().is_some_and(has_game_event_listener))
--                    .map(|other| other.get_entity().entity_id),
--            );
--        }
-+        let moved = entity
-+            .bounding_box
-+            .load()
-+            .expand(horizontal, vertical, horizontal);
-+        game_event_listener_links(
-+            &world,
-+            mob.movement_emission().emits_events(),
-+            &moved,
-+            &mut links,
-+        );
-         let mut reach = AuditedReach {
-             bounding_box: entity.bounding_box.load(),
-             motion: (horizontal, vertical),
 diff --git a/crates/pumpkin-core/src/entity/mob/piglin.rs b/crates/pumpkin-core/src/entity/mob/piglin.rs
 index 3b4dbfd82..7b56c239b 100644
 --- a/crates/pumpkin-core/src/entity/mob/piglin.rs
@@ -454,7 +318,7 @@ index 3b4dbfd82..7b56c239b 100644
 +
 +
 diff --git a/crates/pumpkin-core/src/entity/mod.rs b/crates/pumpkin-core/src/entity/mod.rs
-index dda03180b..11ac6041a 100644
+index ce0b5c47d..11ac6041a 100644
 --- a/crates/pumpkin-core/src/entity/mod.rs
 +++ b/crates/pumpkin-core/src/entity/mod.rs
 @@ -1,8 +1,7 @@
@@ -475,29 +339,7 @@ index dda03180b..11ac6041a 100644
  use player::Player;
  use pumpkin_data::BlockState;
  use pumpkin_data::biome::Biome;
-@@ -626,6 +626,21 @@ pub trait EntityBase: Send + Sync + std::any::Any {
-         }
-     }
- 
-+    /// Vanilla `getSwimSplashSound`.
-+    fn get_swim_splash_sound(&self) -> Option<Sound> {
-+        self.get_entity().entity_type.swim_splash_sound
-+    }
-+
-+    /// Vanilla `getSwimHighSpeedSplashSound`.
-+    fn get_swim_high_speed_splash_sound(&self) -> Option<Sound> {
-+        self.get_entity().entity_type.swim_high_speed_splash_sound
-+    }
-+
-+    /// Vanilla `doWaterSplashEffect`, run when the entity enters water.
-+    fn do_water_splash_effect(&self, caller: &dyn EntityBase) {
-+        self.get_entity().water_splash_effect(caller);
-+    }
-+
-     /// Vanilla `LivingEntity.getFallSounds`: the small and big fall damage sounds.
-     fn get_fall_sounds(&self) -> (Sound, Sound) {
-         let entity_type = self.get_entity().entity_type;
-@@ -1040,6 +1055,7 @@ pub trait EntityBase: Send + Sync + std::any::Any {
+@@ -1055,6 +1055,7 @@ pub trait EntityBase: Send + Sync + std::any::Any {
  
      fn cast_any(&self) -> &dyn std::any::Any;
  
@@ -505,7 +347,7 @@ index dda03180b..11ac6041a 100644
      fn get_item_entity(&self) -> Option<&ItemEntity> {
          None
      }
-@@ -1210,13 +1226,13 @@ pub struct Entity {
+@@ -1225,13 +1226,13 @@ pub struct Entity {
      pub touching_lava: AtomicBool,
      /// Indicates the fluid height
      pub lava_height: AtomicCell<f64>,
@@ -521,71 +363,7 @@ index dda03180b..11ac6041a 100644
      pub pitch: AtomicCell<f32>,
      /// The entity's current pose (e.g., standing, sitting, swimming).
      pub pose: AtomicCell<EntityPose>,
-@@ -1288,6 +1304,8 @@ pub struct Entity {
-     pub bedrock_flags_two: std::sync::atomic::AtomicI64,
-     /// If true, the entity bypasses physics, collisions, and block effects (e.g. spectator, markers, display entities)
-     pub no_physics: AtomicBool,
-+    /// Vanilla `firstTick`: true until the first base tick has run.
-+    pub first_tick: AtomicBool,
-     pub synched_data: synched_entity_data::SynchedEntityData,
-     /// Multiplies movement for one tick before being reset
-     pub movement_multiplier: AtomicCell<Vector3<f64>>,
-@@ -1528,6 +1546,7 @@ impl Entity {
-             has_no_gravity: AtomicBool::new(false),
-             scoreboard_tags: std::sync::Mutex::new(HashSet::new()),
-             no_physics: AtomicBool::new(false),
-+            first_tick: AtomicBool::new(true),
-             synched_data: synched_entity_data::SynchedEntityData::new(),
-             movement_multiplier: AtomicCell::new(Vector3::default()),
-             velocity_dirty: AtomicBool::new(true),
-@@ -2399,9 +2418,10 @@ impl Entity {
-                 living.fall_distance.store(0.0);
-             }
- 
--            if !self.touching_water.load(Ordering::SeqCst) {
--
--                // TODO: Spawn splash particles
-+            if !self.touching_water.load(Ordering::SeqCst)
-+                && !self.first_tick.load(Ordering::Relaxed)
-+            {
-+                caller.do_water_splash_effect(caller);
-             }
-         }
- 
-@@ -2821,6 +2841,32 @@ impl Entity {
-         caller.play_swim_sound((speed * volume_modifier).min(1.0));
-     }
- 
-+    /// The base `Entity.doWaterSplashEffect`. Clients spawn the bubble and splash particles
-+    /// themselves.
-+    pub fn water_splash_effect(&self, caller: &dyn EntityBase) {
-+        let rider = caller.get_controlling_passenger();
-+        let (velocity, volume_modifier) = rider.as_ref().map_or_else(
-+            || (self.velocity.load(), 0.2),
-+            |rider| (rider.get_entity().velocity.load(), 0.9),
-+        );
-+        let speed = ((velocity.x * velocity.x * 0.2
-+            + velocity.y * velocity.y
-+            + velocity.z * velocity.z * 0.2)
-+            .sqrt() as f32
-+            * volume_modifier)
-+            .min(1.0);
-+        let sound = if speed < 0.25 {
-+            caller.get_swim_splash_sound()
-+        } else {
-+            caller.get_swim_high_speed_splash_sound()
-+        };
-+        if let Some(sound) = sound {
-+            let pitch = (rand::random::<f32>() - rand::random::<f32>()).mul_add(0.4, 1.0);
-+            caller.play_entity_sound(sound, speed, pitch);
-+        }
-+        self.emit_own_game_event(caller, GameEvent::Splash);
-+    }
-+
-     /// Vanilla `gameEvent(event)`: at the entity, with itself as the source.
-     fn emit_own_game_event(&self, caller: &dyn EntityBase, event: GameEvent) {
-         self.world.load().emit_game_event_with_context(
-@@ -4317,16 +4363,8 @@ impl Entity {
+@@ -4362,16 +4363,8 @@ impl Entity {
          }
      }
  
@@ -604,7 +382,7 @@ index dda03180b..11ac6041a 100644
      }
  
      pub fn has_passengers(&self) -> bool {
-@@ -4602,7 +4640,7 @@ impl Entity {
+@@ -4647,7 +4640,7 @@ impl Entity {
                      .teleport_id_count
                      .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
                      + 1;
@@ -613,49 +391,15 @@ index dda03180b..11ac6041a 100644
                  let placeholder =
                      Vector3::new(self.pos.load().x, vehicle_box.max.y, self.pos.load().z);
                  *player
-@@ -5245,6 +5283,7 @@ impl EntityBase for Entity {
-             self.riding_cooldown
-                 .store(riding_cooldown - 1, Ordering::Relaxed);
-         }
-+        self.first_tick.store(false, Ordering::Relaxed);
-     }
- 
-     fn get_entity(&self) -> &Entity {
-@@ -5386,3 +5425,6 @@ mod tests {
+@@ -5432,3 +5425,6 @@ mod tests {
          assert_eq!(entity_type_to_bedrock_identifier(&EntityType::COW), "cow");
      }
  }
 +
 +
 +
-diff --git a/crates/pumpkin-core/src/entity/passive/pufferfish.rs b/crates/pumpkin-core/src/entity/passive/pufferfish.rs
-index 6a645c912..146b4a412 100644
---- a/crates/pumpkin-core/src/entity/passive/pufferfish.rs
-+++ b/crates/pumpkin-core/src/entity/passive/pufferfish.rs
-@@ -131,10 +131,7 @@ impl PufferfishEntity {
-             if let Some(living) = mob.get_living_entity() {
-                 living.add_effect(Self::poison(state));
-             }
--            let entity = self.get_entity();
--            if !entity.is_silent() {
--                entity.play_sound(Sound::EntityPufferFishSting);
--            }
-+            self.play_entity_sound(Sound::EntityPufferFishSting, 1.0, 1.0);
-         }
-     }
- }
-@@ -213,7 +210,8 @@ impl Mob for PufferfishEntity {
-                     0.0,
-                 ));
-             }
--            player.living_entity.add_effect(Self::poison(state));
-+            // Through the player, so `effects_changed` advancements trigger like vanilla.
-+            player.add_effect(Self::poison(state));
-         }
-     }
- 
 diff --git a/crates/pumpkin-core/src/entity/player.rs b/crates/pumpkin-core/src/entity/player.rs
-index ef61a6c3d..faac61af5 100644
+index 3e30b28d3..faac61af5 100644
 --- a/crates/pumpkin-core/src/entity/player.rs
 +++ b/crates/pumpkin-core/src/entity/player.rs
 @@ -1,4 +1,4 @@
@@ -770,28 +514,7 @@ index ef61a6c3d..faac61af5 100644
      }
  
      pub fn apply_mending_from_xp(&self, mut xp: i32) -> i32 {
-@@ -7099,6 +7044,20 @@ impl EntityBase for Player {
-         Some(Sound::EntityPlayerSwim)
-     }
- 
-+    fn get_swim_splash_sound(&self) -> Option<Sound> {
-+        Some(Sound::EntityPlayerSplash)
-+    }
-+
-+    fn get_swim_high_speed_splash_sound(&self) -> Option<Sound> {
-+        Some(Sound::EntityPlayerSplashHighSpeed)
-+    }
-+
-+    fn do_water_splash_effect(&self, caller: &dyn EntityBase) {
-+        if !self.is_spectator() {
-+            self.get_entity().water_splash_effect(caller);
-+        }
-+    }
-+
-     fn get_fall_sounds(&self) -> (Sound, Sound) {
-         (Sound::EntityPlayerSmallFall, Sound::EntityPlayerBigFall)
-     }
-@@ -8513,3 +8472,6 @@ mod tests {
+@@ -8527,3 +8472,6 @@ mod tests {
          assert!(bedrock_block > java_block);
      }
  }

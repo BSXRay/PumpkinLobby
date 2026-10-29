@@ -23,7 +23,7 @@ if ($LASTEXITCODE -ne 0) { throw "reset failed" }
 # Apply patches
 $patches = Get-ChildItem "$PSScriptRoot\patches\*.patch" | Sort-Object Name
 foreach ($p in $patches) {
-    git am $p.FullName
+    git am --3way $p.FullName
     if ($LASTEXITCODE -ne 0) { throw "git am failed on $($p.Name)" }
 }
 Pop-Location
