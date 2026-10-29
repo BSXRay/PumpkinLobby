@@ -1,6 +1,6 @@
-From 0bf74531e02350b8d4efbf9c296d3e001e2b0d85 Mon Sep 17 00:00:00 2001
+From 76d2bd4e14fa99d70fb201b438423d87d59d293a Mon Sep 17 00:00:00 2001
 From: BSXRay <bsxray@users.noreply.github.com>
-Date: Thu, 29 Oct 2026 21:14:29 +0100
+Date: Thu, 29 Oct 2026 21:17:44 +0100
 Subject: [PATCH] feat: PumpkinLobby - disable gameplay features and add build
  tooling
 
@@ -11,21 +11,21 @@ Subject: [PATCH] feat: PumpkinLobby - disable gameplay features and add build
  build-linux-deb.ps1                           |  22 ++++
  build-windows.ps1                             |  11 ++
  .../pumpkin-core/src/block/entities/hopper.rs |   4 +-
- .../src/block/entities/mob_spawner.rs         | 108 +-----------------
+ .../src/block/entities/mob_spawner.rs         | 115 ++----------------
  .../pumpkin-core/src/command/commands/mod.rs  |   5 +-
- .../pumpkin-core/src/entity/experience_orb.rs |  11 +-
- crates/pumpkin-core/src/entity/hunger.rs      |  87 +-------------
+ .../pumpkin-core/src/entity/experience_orb.rs |  12 +-
+ crates/pumpkin-core/src/entity/hunger.rs      |  87 +------------
  crates/pumpkin-core/src/entity/item.rs        |   4 +-
  crates/pumpkin-core/src/entity/mob/piglin.rs  |   4 +-
- crates/pumpkin-core/src/entity/mod.rs         |  26 ++---
- crates/pumpkin-core/src/entity/player.rs      |  79 +++----------
+ crates/pumpkin-core/src/entity/mod.rs         |  26 ++--
+ crates/pumpkin-core/src/entity/player.rs      |  79 ++----------
  .../src/entity/vehicle/minecart/hopper.rs     |   4 +-
  .../pumpkin-core/src/item/items/spawn_egg.rs  |   3 +-
  .../src/server/server_test_manager.rs         |   4 +-
- crates/pumpkin-core/src/world/mod.rs          |  31 +++--
+ crates/pumpkin-core/src/world/mod.rs          |  31 ++---
  crates/pumpkin-wasm-host-v0_2/src/entity.rs   |   6 +-
  crates/pumpkin/Cargo.toml                     |  17 ++-
- 20 files changed, 149 insertions(+), 304 deletions(-)
+ 20 files changed, 154 insertions(+), 307 deletions(-)
  create mode 100644 BUILD.md
  create mode 100644 build-linux-deb.ps1
  create mode 100644 build-windows.ps1
@@ -147,15 +147,29 @@ index bad3dc9a9..f6de014a7 100644
 +
 +
 diff --git a/crates/pumpkin-core/src/block/entities/mob_spawner.rs b/crates/pumpkin-core/src/block/entities/mob_spawner.rs
-index 9182d7c69..70d40df98 100644
+index 9182d7c69..85f167c25 100644
 --- a/crates/pumpkin-core/src/block/entities/mob_spawner.rs
 +++ b/crates/pumpkin-core/src/block/entities/mob_spawner.rs
-@@ -1,4 +1,4 @@
+@@ -1,15 +1,15 @@
 -use std::sync::{
 +﻿use std::sync::{
      Arc,
      atomic::{AtomicI32, Ordering},
  };
+ 
+ use crossbeam::atomic::AtomicCell;
+-use pumpkin_data::{entity::EntityType, world::WorldEvent};
++use pumpkin_data::entity::EntityType;
+ use pumpkin_nbt::compound::NbtCompound;
+-use pumpkin_util::math::{position::BlockPos, vector3::Vector3};
++use pumpkin_util::math::position::BlockPos;
+ 
+ use crate::{
+-    block::entities::BlockEntity, entity::EntityBase, entity::mob::spawn::finalize_spawn,
++    block::entities::BlockEntity,
+     world::World,
+ };
+ 
 @@ -102,107 +102,8 @@ impl BlockEntity for MobSpawnerBlockEntity {
          self.position
      }
@@ -266,10 +280,11 @@ index 9182d7c69..70d40df98 100644
      }
  
      fn from_nbt(nbt: &pumpkin_nbt::compound::NbtCompound, position: BlockPos) -> Self
-@@ -299,3 +200,6 @@ impl BlockEntity for MobSpawnerBlockEntity {
+@@ -299,3 +200,7 @@ impl BlockEntity for MobSpawnerBlockEntity {
          self
      }
  }
++
 +
 +
 +
@@ -305,7 +320,7 @@ index 3d3ec4d51..c8949ee12 100644
  }
 +
 diff --git a/crates/pumpkin-core/src/entity/experience_orb.rs b/crates/pumpkin-core/src/entity/experience_orb.rs
-index 3c72212b5..80b2bfb48 100644
+index 3c72212b5..f627d3be7 100644
 --- a/crates/pumpkin-core/src/entity/experience_orb.rs
 +++ b/crates/pumpkin-core/src/entity/experience_orb.rs
 @@ -1,4 +1,4 @@
@@ -329,10 +344,11 @@ index 3c72212b5..80b2bfb48 100644
      }
  
      const fn round_to_orb_size(value: u32) -> u32 {
-@@ -396,3 +390,4 @@ mod tests {
+@@ -396,3 +390,5 @@ mod tests {
          );
      }
  }
++
 +
 diff --git a/crates/pumpkin-core/src/entity/hunger.rs b/crates/pumpkin-core/src/entity/hunger.rs
 index 9de1d0467..55eb29421 100644
