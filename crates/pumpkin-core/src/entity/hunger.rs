@@ -1,8 +1,6 @@
-use super::{NBTStorage, NBTStorageInit, player::Player};
+﻿use super::{NBTStorage, NBTStorageInit, player::Player};
 use crossbeam::atomic::AtomicCell;
-use pumpkin_data::damage::DamageType;
 use pumpkin_nbt::compound::NbtCompound;
-use pumpkin_util::Difficulty;
 
 const MAX_FOOD: u8 = 20;
 const EXHAUSTION_COST: f32 = 4.0;
@@ -27,84 +25,8 @@ impl Default for HungerManager {
 }
 
 impl HungerManager {
-    pub fn tick(&self, player: &Player) {
-        let mut level = self.level.load();
-        let mut saturation = self.saturation.load();
-        let mut exhaustion = self.exhaustion.load();
-        let mut timer = self.tick_timer.load();
-
-        let level_info = player.world().level_info.load();
-        let difficulty = level_info.difficulty;
-        let natural_regen = level_info.game_rules.natural_health_regeneration;
-        let health = player.living_entity.health.load();
-        let can_heal = player.can_food_heal();
-
-        let mut needs_sync = false;
-        let mut heal_amount = 0.0;
-        let mut damage_amount = 0.0;
-
-        if exhaustion > EXHAUSTION_COST {
-            exhaustion -= EXHAUSTION_COST;
-            if saturation > 0.0 {
-                saturation = (saturation - 1.0).max(0.0);
-            } else if difficulty != Difficulty::Peaceful {
-                level = level.saturating_sub(1);
-            }
-            needs_sync = true;
-        }
-
-        if natural_regen && saturation > 0.0 && can_heal && level >= 20 {
-            timer += 1;
-            if timer >= 10 {
-                let cost = saturation.min(6.0);
-                heal_amount = cost / 6.0;
-                exhaustion = (exhaustion + cost).min(MAX_EXHAUSTION);
-                timer = 0;
-                needs_sync = true;
-            }
-        } else if natural_regen && level >= 18 && can_heal {
-            timer += 1;
-            if timer >= 80 {
-                heal_amount = 1.0;
-                exhaustion = (exhaustion + 6.0).min(MAX_EXHAUSTION);
-                timer = 0;
-                needs_sync = true;
-            }
-        } else if level == 0 {
-            timer += 1;
-            if timer >= 80 {
-                timer = 0;
-                let should_starve = health > 10.0
-                    || difficulty == Difficulty::Hard
-                    || (health > 1.0 && difficulty == Difficulty::Normal);
-
-                if should_starve {
-                    damage_amount = 1.0;
-                }
-                self.tick_timer.store(0);
-            }
-        } else {
-            timer = 0;
-        }
-
-        if needs_sync || timer != self.tick_timer.load() {
-            self.level.store(level);
-            self.saturation.store(saturation);
-            self.exhaustion.store(exhaustion);
-            self.tick_timer.store(timer);
-        }
-
-        if needs_sync {
-            player.send_health();
-        }
-        if heal_amount > 0.0 {
-            player.heal(heal_amount);
-        }
-        if damage_amount > 0.0 {
-            player
-                .living_entity
-                .damage(player, damage_amount, DamageType::STARVE);
-        }
+    pub fn tick(&self, _player: &Player) {
+        // Hunger disabled in PumpkinLobby.
     }
 
     pub fn eat(&self, player: &Player, food: u8, saturation: f32) {
@@ -182,3 +104,4 @@ impl NBTStorage for HungerManager {
 }
 
 impl NBTStorageInit for HungerManager {}
+

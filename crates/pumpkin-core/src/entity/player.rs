@@ -1,4 +1,4 @@
-pub mod advancement;
+﻿pub mod advancement;
 pub mod statistics;
 
 use core::f32;
@@ -304,7 +304,6 @@ use crate::log_at_level;
 use crate::net::{ClientPlatform, GameProfile};
 use crate::net::{DisconnectReason, PlayerConfig};
 use crate::plugin::api::events::entity::entity_toggle_glide::EntityToggleGlideEvent;
-use crate::plugin::player::exp_change::PlayerExpChangeEvent;
 use crate::plugin::player::inventory_interact::InventoryClickEvent;
 use crate::plugin::player::player_change_world::PlayerChangeWorldEvent;
 use crate::plugin::player::player_gamemode_change::PlayerGamemodeChangeEvent;
@@ -1838,7 +1837,7 @@ impl Player {
         }
     }
 
-    /// Convenience wrapper – damages the currently held (main-hand) item.
+    /// Convenience wrapper â€“ damages the currently held (main-hand) item.
     pub fn damage_held_item(&self, amount: i32) -> bool {
         self.damage_item_in_slot(&EquipmentSlot::MAIN_HAND, amount)
     }
@@ -4581,13 +4580,9 @@ impl Player {
     }
 
     #[must_use]
-    pub fn can_eat(&self, can_always_eat: bool) -> bool {
-        self.abilities
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .invulnerable
-            || can_always_eat
-            || self.hunger_manager.level.load() < 20
+    pub fn can_eat(&self, _can_always_eat: bool) -> bool {
+        // Eating disabled in PumpkinLobby.
+        false
     }
 
     pub fn can_food_heal(&self) -> bool {
@@ -5804,25 +5799,8 @@ impl Player {
     }
 
     /// Add experience points to the player.
-    pub fn add_experience_points(self: &Arc<Self>, mut added_points: i32) {
-        let server = self.world().server.upgrade();
-        if let Some(server) = server {
-            let mut event = PlayerExpChangeEvent::new(self.clone(), added_points);
-            server.plugin_manager.fire_blocking(&server, &mut event);
-            added_points = event.amount;
-        }
-
-        let current_level = self.experience_level.load(Ordering::Relaxed);
-        let current_points = self.experience_points.load(Ordering::Relaxed);
-
-        let total_exp = experience::points_to_level(current_level) as i64 + current_points as i64;
-        let new_total_exp = total_exp + added_points as i64;
-        let safe_new_total = new_total_exp.clamp(0, i32::MAX as i64) as i32;
-
-        let (new_level, new_points) = experience::total_to_level_and_points(safe_new_total);
-        let progress = experience::progress_in_level(new_points, new_level);
-
-        self.set_experience(new_level, progress, new_points);
+    pub fn add_experience_points(self: &Arc<Self>, _added_points: i32) {
+        // Experience disabled in PumpkinLobby.
     }
 
     pub fn apply_mending_from_xp(&self, mut xp: i32) -> i32 {
@@ -8513,3 +8491,5 @@ mod tests {
         assert!(bedrock_block > java_block);
     }
 }
+
+

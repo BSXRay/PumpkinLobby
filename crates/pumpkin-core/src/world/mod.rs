@@ -2176,12 +2176,7 @@ impl World {
         let spawn_enemies = !peaceful && spawn_monsters && spawn_mobs;
         let spawn_passives = spawn_passives && spawn_mobs;
 
-        let spawn_list = Arc::new(natural_spawner::get_filtered_spawning_categories(
-            &spawn_state,
-            spawn_mobs,
-            spawn_enemies,
-            spawn_passives,
-        ));
+        let spawn_list: Arc<Vec<&'static pumpkin_data::entity::MobCategory>> = Arc::new(Vec::new());
 
         // 5. Parallel Chunk Spawners via Rayon
         if !spawn_list.is_empty() {
@@ -5761,13 +5756,12 @@ impl World {
 
     pub fn schedule_fluid_tick(
         &self,
-        fluid: &Fluid,
-        block_pos: BlockPos,
-        delay: u8,
-        priority: TickPriority,
+        _fluid: &Fluid,
+        _block_pos: BlockPos,
+        _delay: u8,
+        _priority: TickPriority,
     ) {
-        self.level
-            .schedule_fluid_tick(fluid, block_pos, delay, priority);
+        // Liquid physics disabled in PumpkinLobby.
     }
 
     pub fn is_block_tick_scheduled(&self, block_pos: &BlockPos, block: &Block) -> bool {
