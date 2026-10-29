@@ -1,6 +1,6 @@
-From 8fa3188d3b443ee899c1057da00a2593343e2bc4 Mon Sep 17 00:00:00 2001
+From a95be00ae9584b0ef3e759773f322c956fab3317 Mon Sep 17 00:00:00 2001
 From: BSXRay <bsxray@users.noreply.github.com>
-Date: Thu, 29 Oct 2026 21:06:22 +0100
+Date: Thu, 29 Oct 2026 21:09:38 +0100
 Subject: [PATCH] feat: PumpkinLobby - disable gameplay features and add build
  tooling
 
@@ -11,9 +11,9 @@ Subject: [PATCH] feat: PumpkinLobby - disable gameplay features and add build
  build-linux-deb.ps1                           | 22 +++++
  build-windows.ps1                             | 11 +++
  .../pumpkin-core/src/block/entities/hopper.rs |  4 +-
- .../src/block/entities/mob_spawner.rs         |  6 +-
+ .../src/block/entities/mob_spawner.rs         |  8 +-
  .../pumpkin-core/src/command/commands/mod.rs  |  5 +-
- .../pumpkin-core/src/entity/experience_orb.rs |  3 +
+ .../pumpkin-core/src/entity/experience_orb.rs | 12 +--
  crates/pumpkin-core/src/entity/hunger.rs      | 87 ++-----------------
  crates/pumpkin-core/src/entity/item.rs        |  4 +-
  crates/pumpkin-core/src/entity/mob/piglin.rs  |  4 +-
@@ -25,7 +25,7 @@ Subject: [PATCH] feat: PumpkinLobby - disable gameplay features and add build
  crates/pumpkin-core/src/world/mod.rs          | 31 +++----
  crates/pumpkin-wasm-host-v0_2/src/entity.rs   |  6 +-
  crates/pumpkin/Cargo.toml                     | 17 +++-
- 20 files changed, 146 insertions(+), 197 deletions(-)
+ 20 files changed, 151 insertions(+), 203 deletions(-)
  create mode 100644 BUILD.md
  create mode 100644 build-linux-deb.ps1
  create mode 100644 build-windows.ps1
@@ -147,7 +147,7 @@ index bad3dc9a9..f6de014a7 100644
 +
 +
 diff --git a/crates/pumpkin-core/src/block/entities/mob_spawner.rs b/crates/pumpkin-core/src/block/entities/mob_spawner.rs
-index 9182d7c69..5c260d415 100644
+index 9182d7c69..31ad040bc 100644
 --- a/crates/pumpkin-core/src/block/entities/mob_spawner.rs
 +++ b/crates/pumpkin-core/src/block/entities/mob_spawner.rs
 @@ -1,4 +1,4 @@
@@ -156,20 +156,22 @@ index 9182d7c69..5c260d415 100644
      Arc,
      atomic::{AtomicI32, Ordering},
  };
-@@ -102,8 +102,7 @@ impl BlockEntity for MobSpawnerBlockEntity {
-         self.position
+@@ -103,6 +103,9 @@ impl BlockEntity for MobSpawnerBlockEntity {
      }
  
--    fn tick(&self, world: &Arc<World>) {
--        if let Some(entity_type) = &self.entity_type.load() {
-+    fn tick(&self, _world: &Arc<World>) {\n        // Mob spawners disabled in PumpkinLobby.\n        return;\n        if let Some(entity_type) = &self.entity_type.load() {
+     fn tick(&self, world: &Arc<World>) {
++        // Mob spawners disabled in PumpkinLobby.
++        let _ = world;
++        return;
+         if let Some(entity_type) = &self.entity_type.load() {
              let center = self.position.to_centered_f64();
              let max_player_dist_sq = (self.required_player_range as f64).powi(2);
-             let player_nearby = world.players.load().iter().any(|p| {
-@@ -299,3 +298,4 @@ impl BlockEntity for MobSpawnerBlockEntity {
+@@ -299,3 +302,6 @@ impl BlockEntity for MobSpawnerBlockEntity {
          self
      }
  }
++
++
 +
 diff --git a/crates/pumpkin-core/src/command/commands/mod.rs b/crates/pumpkin-core/src/command/commands/mod.rs
 index 3d3ec4d51..c8949ee12 100644
@@ -203,19 +205,36 @@ index 3d3ec4d51..c8949ee12 100644
  }
 +
 diff --git a/crates/pumpkin-core/src/entity/experience_orb.rs b/crates/pumpkin-core/src/entity/experience_orb.rs
-index 3c72212b5..f10a14b4d 100644
+index 3c72212b5..9789cf18f 100644
 --- a/crates/pumpkin-core/src/entity/experience_orb.rs
 +++ b/crates/pumpkin-core/src/entity/experience_orb.rs
-@@ -114,6 +114,9 @@ impl ExperienceOrbEntity {
+@@ -1,4 +1,4 @@
+-use core::f32;
++﻿use core::f32;
+ use std::sync::{
+     Arc,
+     atomic::{AtomicI32, AtomicU32, Ordering},
+@@ -114,13 +114,8 @@ impl ExperienceOrbEntity {
          direction: Vector3<f64>,
          amount: u32,
      ) {
+-        let mut amount = amount;
+-        while amount > 0 {
+-            let i = Self::round_to_orb_size(amount);
+-            amount -= i;
+-            let orb = Arc::new(Self::new_with_direction(world, position, direction, i));
+-            world.spawn_entity(orb);
+-        }
 +        // XP drops disabled in PumpkinLobby.
 +        let _ = (world, position, direction, amount);
-+        return;
-         let mut amount = amount;
-         while amount > 0 {
-             let i = Self::round_to_orb_size(amount);
+     }
+ 
+     const fn round_to_orb_size(value: u32) -> u32 {
+@@ -396,3 +391,4 @@ mod tests {
+         );
+     }
+ }
++
 diff --git a/crates/pumpkin-core/src/entity/hunger.rs b/crates/pumpkin-core/src/entity/hunger.rs
 index 9de1d0467..55eb29421 100644
 --- a/crates/pumpkin-core/src/entity/hunger.rs
