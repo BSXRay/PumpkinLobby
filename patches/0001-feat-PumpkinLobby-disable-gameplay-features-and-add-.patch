@@ -1,6 +1,6 @@
-From c6deb3bb61d234b0f3fdf224ed87d80190ef5bf1 Mon Sep 17 00:00:00 2001
+From 3566c06203f31f9279f5809030c7e29172eeb072 Mon Sep 17 00:00:00 2001
 From: BSXRay <bsxray@users.noreply.github.com>
-Date: Thu, 29 Oct 2026 20:44:00 +0100
+Date: Thu, 29 Oct 2026 20:51:29 +0100
 Subject: [PATCH] feat: PumpkinLobby - disable gameplay features and add build
  tooling
 
@@ -10,20 +10,23 @@ Subject: [PATCH] feat: PumpkinLobby - disable gameplay features and add build
  README.md                                     |  7 ++
  build-linux-deb.ps1                           | 22 +++++
  build-windows.ps1                             | 11 +++
- .../pumpkin-core/src/block/entities/hopper.rs |  5 +-
+ .../pumpkin-core/src/block/entities/hopper.rs |  4 +-
  .../pumpkin-core/src/command/commands/mod.rs  |  5 +-
- crates/pumpkin-core/src/entity/hunger.rs      | 87 ++-----------------
- crates/pumpkin-core/src/entity/item.rs        |  5 +-
- crates/pumpkin-core/src/entity/mob/piglin.rs  |  9 +-
- crates/pumpkin-core/src/entity/mod.rs         | 26 ++----
- crates/pumpkin-core/src/entity/player.rs      | 76 +++-------------
- .../src/entity/vehicle/minecart/hopper.rs     |  5 +-
+ .../pumpkin-core/src/entity/experience_orb.rs |  3 +
+ crates/pumpkin-core/src/entity/hunger.rs      | 87 ++----------------
+ crates/pumpkin-core/src/entity/item.rs        | 20 +++--
+ crates/pumpkin-core/src/entity/mob/mod.rs     | 70 ++++++++++-----
+ crates/pumpkin-core/src/entity/mob/piglin.rs  |  4 +-
+ crates/pumpkin-core/src/entity/mod.rs         | 78 ++++++++++++----
+ .../src/entity/passive/pufferfish.rs          |  8 +-
+ crates/pumpkin-core/src/entity/player.rs      | 90 ++++++-------------
+ .../src/entity/vehicle/minecart/hopper.rs     |  4 +-
  .../pumpkin-core/src/item/items/spawn_egg.rs  |  3 +-
- .../src/server/server_test_manager.rs         |  5 +-
+ .../src/server/server_test_manager.rs         |  4 +-
  crates/pumpkin-core/src/world/mod.rs          | 31 +++----
- crates/pumpkin-wasm-host-v0_2/src/entity.rs   | 11 +--
+ crates/pumpkin-wasm-host-v0_2/src/entity.rs   |  6 +-
  crates/pumpkin/Cargo.toml                     | 17 +++-
- 18 files changed, 140 insertions(+), 205 deletions(-)
+ 21 files changed, 266 insertions(+), 228 deletions(-)
  create mode 100644 BUILD.md
  create mode 100644 build-linux-deb.ps1
  create mode 100644 build-windows.ps1
@@ -129,7 +132,7 @@ index 000000000..5208c87bf
 +Write-Host "Built: dist\pumpkin-windows-x64.exe"
 \ No newline at end of file
 diff --git a/crates/pumpkin-core/src/block/entities/hopper.rs b/crates/pumpkin-core/src/block/entities/hopper.rs
-index bad3dc9a9..178b2df0b 100644
+index bad3dc9a9..f6de014a7 100644
 --- a/crates/pumpkin-core/src/block/entities/hopper.rs
 +++ b/crates/pumpkin-core/src/block/entities/hopper.rs
 @@ -1,4 +1,4 @@
@@ -138,19 +141,11 @@ index bad3dc9a9..178b2df0b 100644
  use crate::entity::experience_orb::ExperienceOrbEntity;
  use crate::world::World;
  use pumpkin_data::block_properties::{FacingHopper, HopperLikeProperties};
-@@ -275,7 +275,7 @@ impl HopperBlockEntity {
-             );
-             let entities = world.get_entities_at_box(&search_box);
-             for entity_base in entities {
--                if let Some(item_entity) = entity_base.get_item_entity() {
-+                if let Some(item_entity) = entity_baseNone {
-                     let (is_empty, registry_key) = {
-                         let stack = item_entity
-                             .get_item_stack()
-@@ -692,3 +692,4 @@ mod tests {
+@@ -692,3 +692,5 @@ mod tests {
          assert_eq!(hopper.get_stack(0).item_count, max);
      }
  }
++
 +
 diff --git a/crates/pumpkin-core/src/command/commands/mod.rs b/crates/pumpkin-core/src/command/commands/mod.rs
 index 3d3ec4d51..c8949ee12 100644
@@ -183,6 +178,20 @@ index 3d3ec4d51..c8949ee12 100644
      }
  }
 +
+diff --git a/crates/pumpkin-core/src/entity/experience_orb.rs b/crates/pumpkin-core/src/entity/experience_orb.rs
+index 765baf069..3c72212b5 100644
+--- a/crates/pumpkin-core/src/entity/experience_orb.rs
++++ b/crates/pumpkin-core/src/entity/experience_orb.rs
+@@ -197,6 +197,9 @@ fn closest_free_center(
+ }
+ 
+ impl EntityBase for ExperienceOrbEntity {
++    /// Vanilla `ExperienceOrb.doWaterSplashEffect` does nothing.
++    fn do_water_splash_effect(&self, _caller: &dyn EntityBase) {}
++
+     fn audited_reach(&self) -> Option<AuditedReach> {
+         let entity = &self.entity;
+         let world = entity.world.load();
 diff --git a/crates/pumpkin-core/src/entity/hunger.rs b/crates/pumpkin-core/src/entity/hunger.rs
 index 9de1d0467..55eb29421 100644
 --- a/crates/pumpkin-core/src/entity/hunger.rs
@@ -294,7 +303,7 @@ index 9de1d0467..55eb29421 100644
 +
 +
 diff --git a/crates/pumpkin-core/src/entity/item.rs b/crates/pumpkin-core/src/entity/item.rs
-index 34195a635..8791b0150 100644
+index 34195a635..e4449f877 100644
 --- a/crates/pumpkin-core/src/entity/item.rs
 +++ b/crates/pumpkin-core/src/entity/item.rs
 @@ -1,4 +1,4 @@
@@ -303,22 +312,133 @@ index 34195a635..8791b0150 100644
  use crate::entity::player::statistics::StatisticCategory;
  use crate::server::Server;
  use crate::world::World;
-@@ -236,7 +236,7 @@ impl ItemEntity {
-                 .expand(MERGE_DISTANCE, 0.0, MERGE_DISTANCE);
-         let world = self.entity.world.load();
-         for other in world.get_entities_at_box(&bounding_box) {
--            let Some(item) = other.get_item_entity() else {
-+            let Some(item) = otherNone else {
-                 continue;
-             };
-             if item.entity.entity_id == self.entity.entity_id || !item.is_mergeable() {
-@@ -1001,3 +1001,4 @@ mod tests {
+@@ -595,19 +595,25 @@ impl EntityBase for ItemEntity {
+         let pushes =
+             super::MAX_PUSH_OUT_SPEED + super::max_fluid_push_speed(world.dimension.fast_lava);
+         let velocity = entity.velocity.load();
++        let horizontal = velocity.x.hypot(velocity.z) + pushes;
++        let vertical = velocity.y.abs() + pushes + self.get_gravity() + SURFACE_UPWARD_ACCELERATION;
++        let mut links = entity_islands::links_of(self);
++        // Entering water splashes, wherever the item ends up.
++        let moved = entity
++            .bounding_box
++            .load()
++            .expand(horizontal, vertical, horizontal);
++        super::mob::game_event_listener_links(&world, false, &moved, &mut links);
+         let mut reach = AuditedReach {
+             bounding_box: entity.bounding_box.load(),
+-            motion: (
+-                velocity.x.hypot(velocity.z) + pushes,
+-                velocity.y.abs() + pushes + self.get_gravity() + SURFACE_UPWARD_ACCELERATION,
+-            ),
++            motion: (horizontal, vertical),
+             entities: MERGE_DISTANCE,
+             players: 0.0,
+             block_reads: 1.0,
+             route: None,
+             changes_blocks: false,
+             global: false,
+-            links: entity_islands::links_of(self),
++            links,
+         };
+         reach.scan_contact_blocks(&world);
+         Some(reach)
+@@ -1001,3 +1007,5 @@ mod tests {
          assert!(ItemEntity::can_be_hurt_by(&star, DamageType::LAVA));
      }
  }
 +
++
+diff --git a/crates/pumpkin-core/src/entity/mob/mod.rs b/crates/pumpkin-core/src/entity/mob/mod.rs
+index 434c26d92..113a47ebe 100644
+--- a/crates/pumpkin-core/src/entity/mob/mod.rs
++++ b/crates/pumpkin-core/src/entity/mob/mod.rs
+@@ -1020,6 +1020,43 @@ fn has_game_event_listener(mob: &dyn Mob) -> bool {
+     listens
+ }
+ 
++/// Links the listener mobs that an entity's game events can reach from anywhere in `moved`:
++/// the splash of entering water, plus step, swim and flap when its movement emits events.
++pub(crate) fn game_event_listener_links(
++    world: &World,
++    emits_movement_events: bool,
++    moved: &BoundingBox,
++    links: &mut Vec<i32>,
++) {
++    let emitted: &[GameEvent] = if emits_movement_events {
++        &[
++            GameEvent::Splash,
++            GameEvent::Step,
++            GameEvent::Swim,
++            GameEvent::Flap,
++        ]
++    } else {
++        &[GameEvent::Splash]
++    };
++    let radius = emitted
++        .iter()
++        .copied()
++        .map(GameEvent::notification_radius)
++        .max()
++        .unwrap_or(0);
++    let area = BoundingBox::new(
++        notified_area(moved.min, radius).min,
++        notified_area(moved.max, radius).max,
++    );
++    links.extend(
++        world
++            .entity_index
++            .query(world.entities.load_full(), area)
++            .filter(|other| other.get_mob().is_some_and(has_game_event_listener))
++            .map(|other| other.get_entity().entity_id),
++    );
++}
++
+ impl MobEntity {
+     /// What this mob can touch next tick, if its species and goals are audited.
+     pub fn audited_reach(&self, mob: &dyn Mob) -> Option<AuditedReach> {
+@@ -1095,29 +1132,16 @@ impl MobEntity {
+ 
+         let mut links = entity_islands::links_of(mob);
+         links.extend(goals.links);
+-        if mob.movement_emission().emits_events() {
+-            // Step, swim and flap events reach listeners around wherever the mob ends up.
+-            let moved = entity
+-                .bounding_box
+-                .load()
+-                .expand(horizontal, vertical, horizontal);
+-            let radius = [GameEvent::Step, GameEvent::Swim, GameEvent::Flap]
+-                .into_iter()
+-                .map(GameEvent::notification_radius)
+-                .max()
+-                .unwrap_or(0);
+-            let area = BoundingBox::new(
+-                notified_area(moved.min, radius).min,
+-                notified_area(moved.max, radius).max,
+-            );
+-            links.extend(
+-                world
+-                    .entity_index
+-                    .query(world.entities.load_full(), area)
+-                    .filter(|other| other.get_mob().is_some_and(has_game_event_listener))
+-                    .map(|other| other.get_entity().entity_id),
+-            );
+-        }
++        let moved = entity
++            .bounding_box
++            .load()
++            .expand(horizontal, vertical, horizontal);
++        game_event_listener_links(
++            &world,
++            mob.movement_emission().emits_events(),
++            &moved,
++            &mut links,
++        );
+         let mut reach = AuditedReach {
+             bounding_box: entity.bounding_box.load(),
+             motion: (horizontal, vertical),
 diff --git a/crates/pumpkin-core/src/entity/mob/piglin.rs b/crates/pumpkin-core/src/entity/mob/piglin.rs
-index 3b4dbfd82..7e5516f97 100644
+index 3b4dbfd82..7b56c239b 100644
 --- a/crates/pumpkin-core/src/entity/mob/piglin.rs
 +++ b/crates/pumpkin-core/src/entity/mob/piglin.rs
 @@ -1,4 +1,4 @@
@@ -327,40 +447,14 @@ index 3b4dbfd82..7e5516f97 100644
      Arc, Mutex, Weak,
      atomic::{AtomicBool, AtomicI32, Ordering},
  };
-@@ -520,7 +520,7 @@ impl PiglinEntity {
-                 .load()
-                 .iter()
-                 .filter_map(|candidate| {
--                    let item = candidate.get_item_entity()?;
-+                    let item = candidateNone?;
-                     let item_entity = item.get_entity();
-                     let distance_sq = item_entity.pos.load().squared_distance_to_vec(&pos);
-                     (item_entity.is_alive()
-@@ -683,7 +683,7 @@ impl PiglinEntity {
-         let Some(item) = self.nearest_wanted_item() else {
-             return;
-         };
--        let Some(item) = item.get_item_entity() else {
-+        let Some(item) = itemNone else {
-             return;
-         };
-         let is_loved = {
-@@ -754,7 +754,7 @@ impl PiglinEntity {
- 
-         let reach = entity.bounding_box.load().expand(1.0, 0.0, 1.0);
-         for candidate in world.get_entities_at_box(&reach) {
--            let Some(item) = candidate.get_item_entity() else {
-+            let Some(item) = candidateNone else {
-                 continue;
-             };
-             if item.get_entity().is_alive()
-@@ -1281,3 +1281,4 @@ impl CrossbowAttackMob for PiglinEntity {
+@@ -1281,3 +1281,5 @@ impl CrossbowAttackMob for PiglinEntity {
          self.is_charging_crossbow()
      }
  }
 +
++
 diff --git a/crates/pumpkin-core/src/entity/mod.rs b/crates/pumpkin-core/src/entity/mod.rs
-index dda03180b..e3aabb2ba 100644
+index dda03180b..11ac6041a 100644
 --- a/crates/pumpkin-core/src/entity/mod.rs
 +++ b/crates/pumpkin-core/src/entity/mod.rs
 @@ -1,8 +1,7 @@
@@ -373,17 +467,45 @@ index dda03180b..e3aabb2ba 100644
      },
      net::{ClientPlatform, bedrock::BedrockClient, java::JavaClient},
      server::Server,
-@@ -1040,9 +1039,6 @@ pub trait EntityBase: Send + Sync + std::any::Any {
+@@ -15,6 +14,7 @@ use arc_swap::ArcSwap;
+ use bytes::BufMut;
+ use crossbeam::atomic::AtomicCell;
+ use living::LivingEntity;
++use crate::entity::item::ItemEntity;
+ use player::Player;
+ use pumpkin_data::BlockState;
+ use pumpkin_data::biome::Biome;
+@@ -626,6 +626,21 @@ pub trait EntityBase: Send + Sync + std::any::Any {
+         }
+     }
+ 
++    /// Vanilla `getSwimSplashSound`.
++    fn get_swim_splash_sound(&self) -> Option<Sound> {
++        self.get_entity().entity_type.swim_splash_sound
++    }
++
++    /// Vanilla `getSwimHighSpeedSplashSound`.
++    fn get_swim_high_speed_splash_sound(&self) -> Option<Sound> {
++        self.get_entity().entity_type.swim_high_speed_splash_sound
++    }
++
++    /// Vanilla `doWaterSplashEffect`, run when the entity enters water.
++    fn do_water_splash_effect(&self, caller: &dyn EntityBase) {
++        self.get_entity().water_splash_effect(caller);
++    }
++
+     /// Vanilla `LivingEntity.getFallSounds`: the small and big fall damage sounds.
+     fn get_fall_sounds(&self) -> (Sound, Sound) {
+         let entity_type = self.get_entity().entity_type;
+@@ -1040,6 +1055,7 @@ pub trait EntityBase: Send + Sync + std::any::Any {
  
      fn cast_any(&self) -> &dyn std::any::Any;
  
--    fn get_item_entity(&self) -> Option<&ItemEntity> {
--        None
--    }
- 
-     fn get_player(&self) -> Option<&Player> {
++
+     fn get_item_entity(&self) -> Option<&ItemEntity> {
          None
-@@ -1210,13 +1206,13 @@ pub struct Entity {
+     }
+@@ -1210,13 +1226,13 @@ pub struct Entity {
      pub touching_lava: AtomicBool,
      /// Indicates the fluid height
      pub lava_height: AtomicCell<f64>,
@@ -399,7 +521,71 @@ index dda03180b..e3aabb2ba 100644
      pub pitch: AtomicCell<f32>,
      /// The entity's current pose (e.g., standing, sitting, swimming).
      pub pose: AtomicCell<EntityPose>,
-@@ -4317,16 +4313,8 @@ impl Entity {
+@@ -1288,6 +1304,8 @@ pub struct Entity {
+     pub bedrock_flags_two: std::sync::atomic::AtomicI64,
+     /// If true, the entity bypasses physics, collisions, and block effects (e.g. spectator, markers, display entities)
+     pub no_physics: AtomicBool,
++    /// Vanilla `firstTick`: true until the first base tick has run.
++    pub first_tick: AtomicBool,
+     pub synched_data: synched_entity_data::SynchedEntityData,
+     /// Multiplies movement for one tick before being reset
+     pub movement_multiplier: AtomicCell<Vector3<f64>>,
+@@ -1528,6 +1546,7 @@ impl Entity {
+             has_no_gravity: AtomicBool::new(false),
+             scoreboard_tags: std::sync::Mutex::new(HashSet::new()),
+             no_physics: AtomicBool::new(false),
++            first_tick: AtomicBool::new(true),
+             synched_data: synched_entity_data::SynchedEntityData::new(),
+             movement_multiplier: AtomicCell::new(Vector3::default()),
+             velocity_dirty: AtomicBool::new(true),
+@@ -2399,9 +2418,10 @@ impl Entity {
+                 living.fall_distance.store(0.0);
+             }
+ 
+-            if !self.touching_water.load(Ordering::SeqCst) {
+-
+-                // TODO: Spawn splash particles
++            if !self.touching_water.load(Ordering::SeqCst)
++                && !self.first_tick.load(Ordering::Relaxed)
++            {
++                caller.do_water_splash_effect(caller);
+             }
+         }
+ 
+@@ -2821,6 +2841,32 @@ impl Entity {
+         caller.play_swim_sound((speed * volume_modifier).min(1.0));
+     }
+ 
++    /// The base `Entity.doWaterSplashEffect`. Clients spawn the bubble and splash particles
++    /// themselves.
++    pub fn water_splash_effect(&self, caller: &dyn EntityBase) {
++        let rider = caller.get_controlling_passenger();
++        let (velocity, volume_modifier) = rider.as_ref().map_or_else(
++            || (self.velocity.load(), 0.2),
++            |rider| (rider.get_entity().velocity.load(), 0.9),
++        );
++        let speed = ((velocity.x * velocity.x * 0.2
++            + velocity.y * velocity.y
++            + velocity.z * velocity.z * 0.2)
++            .sqrt() as f32
++            * volume_modifier)
++            .min(1.0);
++        let sound = if speed < 0.25 {
++            caller.get_swim_splash_sound()
++        } else {
++            caller.get_swim_high_speed_splash_sound()
++        };
++        if let Some(sound) = sound {
++            let pitch = (rand::random::<f32>() - rand::random::<f32>()).mul_add(0.4, 1.0);
++            caller.play_entity_sound(sound, speed, pitch);
++        }
++        self.emit_own_game_event(caller, GameEvent::Splash);
++    }
++
+     /// Vanilla `gameEvent(event)`: at the entity, with itself as the source.
+     fn emit_own_game_event(&self, caller: &dyn EntityBase, event: GameEvent) {
+         self.world.load().emit_game_event_with_context(
+@@ -4317,16 +4363,8 @@ impl Entity {
          }
      }
  
@@ -418,7 +604,7 @@ index dda03180b..e3aabb2ba 100644
      }
  
      pub fn has_passengers(&self) -> bool {
-@@ -4602,7 +4590,7 @@ impl Entity {
+@@ -4602,7 +4640,7 @@ impl Entity {
                      .teleport_id_count
                      .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
                      + 1;
@@ -427,14 +613,49 @@ index dda03180b..e3aabb2ba 100644
                  let placeholder =
                      Vector3::new(self.pos.load().x, vehicle_box.max.y, self.pos.load().z);
                  *player
-@@ -5386,3 +5374,5 @@ mod tests {
+@@ -5245,6 +5283,7 @@ impl EntityBase for Entity {
+             self.riding_cooldown
+                 .store(riding_cooldown - 1, Ordering::Relaxed);
+         }
++        self.first_tick.store(false, Ordering::Relaxed);
+     }
+ 
+     fn get_entity(&self) -> &Entity {
+@@ -5386,3 +5425,6 @@ mod tests {
          assert_eq!(entity_type_to_bedrock_identifier(&EntityType::COW), "cow");
      }
  }
 +
 +
++
+diff --git a/crates/pumpkin-core/src/entity/passive/pufferfish.rs b/crates/pumpkin-core/src/entity/passive/pufferfish.rs
+index 6a645c912..146b4a412 100644
+--- a/crates/pumpkin-core/src/entity/passive/pufferfish.rs
++++ b/crates/pumpkin-core/src/entity/passive/pufferfish.rs
+@@ -131,10 +131,7 @@ impl PufferfishEntity {
+             if let Some(living) = mob.get_living_entity() {
+                 living.add_effect(Self::poison(state));
+             }
+-            let entity = self.get_entity();
+-            if !entity.is_silent() {
+-                entity.play_sound(Sound::EntityPufferFishSting);
+-            }
++            self.play_entity_sound(Sound::EntityPufferFishSting, 1.0, 1.0);
+         }
+     }
+ }
+@@ -213,7 +210,8 @@ impl Mob for PufferfishEntity {
+                     0.0,
+                 ));
+             }
+-            player.living_entity.add_effect(Self::poison(state));
++            // Through the player, so `effects_changed` advancements trigger like vanilla.
++            player.add_effect(Self::poison(state));
+         }
+     }
+ 
 diff --git a/crates/pumpkin-core/src/entity/player.rs b/crates/pumpkin-core/src/entity/player.rs
-index ef61a6c3d..74431448f 100644
+index ef61a6c3d..faac61af5 100644
 --- a/crates/pumpkin-core/src/entity/player.rs
 +++ b/crates/pumpkin-core/src/entity/player.rs
 @@ -1,4 +1,4 @@
@@ -549,7 +770,28 @@ index ef61a6c3d..74431448f 100644
      }
  
      pub fn apply_mending_from_xp(&self, mut xp: i32) -> i32 {
-@@ -8513,3 +8458,6 @@ mod tests {
+@@ -7099,6 +7044,20 @@ impl EntityBase for Player {
+         Some(Sound::EntityPlayerSwim)
+     }
+ 
++    fn get_swim_splash_sound(&self) -> Option<Sound> {
++        Some(Sound::EntityPlayerSplash)
++    }
++
++    fn get_swim_high_speed_splash_sound(&self) -> Option<Sound> {
++        Some(Sound::EntityPlayerSplashHighSpeed)
++    }
++
++    fn do_water_splash_effect(&self, caller: &dyn EntityBase) {
++        if !self.is_spectator() {
++            self.get_entity().water_splash_effect(caller);
++        }
++    }
++
+     fn get_fall_sounds(&self) -> (Sound, Sound) {
+         (Sound::EntityPlayerSmallFall, Sound::EntityPlayerBigFall)
+     }
+@@ -8513,3 +8472,6 @@ mod tests {
          assert!(bedrock_block > java_block);
      }
  }
@@ -557,7 +799,7 @@ index ef61a6c3d..74431448f 100644
 +
 +
 diff --git a/crates/pumpkin-core/src/entity/vehicle/minecart/hopper.rs b/crates/pumpkin-core/src/entity/vehicle/minecart/hopper.rs
-index b1c993095..88a647c5f 100644
+index b1c993095..7d25693b1 100644
 --- a/crates/pumpkin-core/src/entity/vehicle/minecart/hopper.rs
 +++ b/crates/pumpkin-core/src/entity/vehicle/minecart/hopper.rs
 @@ -1,4 +1,4 @@
@@ -566,19 +808,11 @@ index b1c993095..88a647c5f 100644
  use std::sync::atomic::{AtomicBool, Ordering};
  
  use crate::block::entities::hopper::HopperBlockEntity;
-@@ -79,7 +79,7 @@ impl HopperMinecart {
-         search_box: &BoundingBox,
-     ) -> bool {
-         for entity in world.get_entities_at_box(search_box) {
--            let Some(item) = entity.get_item_entity() else {
-+            let Some(item) = entityNone else {
-                 continue;
-             };
-             let (backup, one) = {
-@@ -150,3 +150,4 @@ mod tests {
+@@ -150,3 +150,5 @@ mod tests {
          assert_eq!(HopperMinecart::new().inventory.size(), 5);
      }
  }
++
 +
 diff --git a/crates/pumpkin-core/src/item/items/spawn_egg.rs b/crates/pumpkin-core/src/item/items/spawn_egg.rs
 index 38e09ec8e..edcc4aabc 100644
@@ -596,7 +830,7 @@ index 38e09ec8e..edcc4aabc 100644
  }
 +
 diff --git a/crates/pumpkin-core/src/server/server_test_manager.rs b/crates/pumpkin-core/src/server/server_test_manager.rs
-index 666ecfd3a..c5e942708 100644
+index 666ecfd3a..caeb98514 100644
 --- a/crates/pumpkin-core/src/server/server_test_manager.rs
 +++ b/crates/pumpkin-core/src/server/server_test_manager.rs
 @@ -1,4 +1,4 @@
@@ -605,19 +839,11 @@ index 666ecfd3a..c5e942708 100644
  use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
  use std::sync::{Arc, LazyLock, Mutex as StdMutex};
  
-@@ -729,7 +729,7 @@ impl GameTestWorld for ServerGameTestWorld {
-             if base.is_removed() || !base.bounding_box.load().intersects(&box_bounds) {
-                 continue;
-             }
--            if let Some(item_entity) = entity.get_item_entity() {
-+            if let Some(item_entity) = entityNone {
-                 let stack = item_entity
-                     .get_item_stack()
-                     .lock()
-@@ -921,3 +921,4 @@ impl GameTestWorld for ServerGameTestWorld {
+@@ -921,3 +921,5 @@ impl GameTestWorld for ServerGameTestWorld {
          Ok(count.max(0).cast_unsigned())
      }
  }
++
 +
 diff --git a/crates/pumpkin-core/src/world/mod.rs b/crates/pumpkin-core/src/world/mod.rs
 index a5f946060..bd48d09ae 100644
@@ -692,7 +918,7 @@ index a5f946060..bd48d09ae 100644
  }
 +
 diff --git a/crates/pumpkin-wasm-host-v0_2/src/entity.rs b/crates/pumpkin-wasm-host-v0_2/src/entity.rs
-index b37171654..0c52beb2c 100644
+index b37171654..60c155c2c 100644
 --- a/crates/pumpkin-wasm-host-v0_2/src/entity.rs
 +++ b/crates/pumpkin-wasm-host-v0_2/src/entity.rs
 @@ -1,4 +1,4 @@
@@ -701,16 +927,7 @@ index b37171654..0c52beb2c 100644
  use crate::LockIgnorePoison;
  use crate::pumpkin::plugin::world::HostEntityWithStore;
  
-@@ -735,7 +735,7 @@ impl HostEntity for PluginHostState {
-         this: Resource<Entity>,
-     ) -> wasmtime::Result<Option<Resource<crate::pumpkin::plugin::item_stack::ItemStack>>> {
-         let entity = self.get(&this)?;
--        let Some(item_entity) = entity.get_item_entity() else {
-+        let Some(item_entity) = entityNone else {
-             return Ok(None);
-         };
-         let stack = item_entity.get_item_stack().lock_ignore_poison().clone();
-@@ -749,13 +749,13 @@ impl HostEntity for PluginHostState {
+@@ -749,7 +749,7 @@ impl HostEntity for PluginHostState {
      fn get_pickup_delay(&mut self, this: Resource<Entity>) -> wasmtime::Result<Option<u32>> {
          let entity = self.get(&this)?;
          Ok(entity
@@ -719,26 +936,11 @@ index b37171654..0c52beb2c 100644
              .map(|item_entity| u32::from(item_entity.get_pickup_delay())))
      }
  
-     fn set_pickup_delay(&mut self, this: Resource<Entity>, ticks: u8) -> wasmtime::Result<bool> {
-         let entity = self.get(&this)?;
--        Ok(entity.get_item_entity().is_some_and(|item_entity| {
-+        Ok(entityNone.is_some_and(|item_entity| {
-             item_entity.set_pickup_delay(ticks);
-             true
-         }))
-@@ -883,7 +883,7 @@ impl HostEntityWithStore<PluginHostState> for HasSelf<PluginHostState> {
-     ) -> wasmtime::Result<bool> {
-         let stack = accessor.take_res(item)?.lock().await.clone();
-         let entity = accessor.get_res(&this)?;
--        let Some(item_entity) = entity.get_item_entity() else {
-+        let Some(item_entity) = entityNone else {
-             return Ok(false);
-         };
-         *item_entity.get_item_stack().lock_ignore_poison() = stack;
-@@ -911,3 +911,4 @@ pub(crate) fn from_wit_entity_type(
+@@ -911,3 +911,5 @@ pub(crate) fn from_wit_entity_type(
          .copied()
          .ok_or_else(|| wasmtime::Error::msg(format!("Invalid entity type index: {index}")))
  }
++
 +
 diff --git a/crates/pumpkin/Cargo.toml b/crates/pumpkin/Cargo.toml
 index f659f9a5d..91ddf902a 100644
